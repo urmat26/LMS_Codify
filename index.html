@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Codify LMS — Списание CodeCoin</title>
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-mode">
+  <div class="app-container">
+    
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="header-logo">
+        <div class="logo-icon">C</div>
+        <div class="logo-text">
+          <span class="brand-lms">LMS</span>
+          <span class="brand-name">Codify</span>
+        </div>
+      </div>
+      <div class="header-stats">
+        <div class="stat-card">
+          <span class="stat-label">Всего выдано мерча</span>
+          <span class="stat-value" id="stats-total-items">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Списано CodeCoin</span>
+          <span class="stat-value text-purple" id="stats-total-coins">0</span>
+        </div>
+      </div>
+      <div class="header-user">
+        <div class="user-avatar">ОЗ</div>
+        <div class="user-info">
+          <span class="user-name">Отдел Заботы</span>
+          <span class="user-role">Куратор</span>
+        </div>
+        <div class="branch-tag" title="Текущая git-ветка">urmat</div>
+      </div>
+    </header>
+
+    <!-- NAVIGATION TABS -->
+    <nav class="app-nav">
+      <button class="nav-btn active" data-tab="tab-groups">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        Группы и студенты
+      </button>
+      <button class="nav-btn" data-tab="tab-catalog">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+        Каталог мерча
+      </button>
+      <button class="nav-btn" data-tab="tab-history">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        История списаний
+      </button>
+    </nav>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="app-main">
+      
+      <!-- TAB: GROUPS & STUDENTS -->
+      <section id="tab-groups" class="tab-content active">
+        <div class="content-controls">
+          <div class="control-group">
+            <label for="group-select" class="field-label">Выберите группу</label>
+            <select id="group-select" class="form-select">
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+          <div class="control-search">
+            <label for="student-search" class="field-label">Поиск студента</label>
+            <div class="search-input-wrapper">
+              <input type="text" id="student-search" class="form-input" placeholder="Поиск по ФИО...">
+              <span class="search-clear-btn" id="search-clear">&times;</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="students-list-container">
+          <div class="table-responsive">
+            <table class="students-table">
+              <thead>
+                <tr>
+                  <th>Студент</th>
+                  <th>Текущий баланс</th>
+                  <th>Статус выдачи сегодня</th>
+                  <th class="text-right">Действие</th>
+                </tr>
+              </thead>
+              <tbody id="students-table-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+          <div class="empty-state hidden" id="students-empty">
+            <div class="empty-icon">🔍</div>
+            <h3>Никто не найден</h3>
+            <p>Попробуйте изменить поисковый запрос</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: MERCH CATALOG -->
+      <section id="tab-catalog" class="tab-content">
+        <div class="section-header">
+          <div class="header-title-wrapper">
+            <h2>Каталог мерча (Награды)</h2>
+            <p>Управление доступным мерчем и его стоимостью в CodeCoin</p>
+          </div>
+          <button class="btn btn-primary" id="btn-add-merch">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Добавить товар
+          </button>
+        </div>
+
+        <div class="merch-grid" id="merch-catalog-grid">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+
+      <!-- TAB: TRANSACTION HISTORY -->
+      <section id="tab-history" class="tab-content">
+        <div class="section-header">
+          <div class="header-title-wrapper">
+            <h2>История списаний</h2>
+            <p>Аудит всех операций списания CodeCoin с возможностью отмены</p>
+          </div>
+          <div class="history-filters">
+            <input type="text" id="history-search" class="form-input" placeholder="Поиск по ФИО студента...">
+          </div>
+        </div>
+
+        <div class="history-list-container">
+          <div class="table-responsive">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Дата и время</th>
+                  <th>Студент / Группа</th>
+                  <th>Товар / Комментарий</th>
+                  <th>Сумма списания</th>
+                  <th>Провел операцию</th>
+                  <th>Статус</th>
+                  <th class="text-right">Действие</th>
+                </tr>
+              </thead>
+              <tbody id="history-table-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+          <div class="empty-state hidden" id="history-empty">
+            <div class="empty-icon">⏳</div>
+            <h3>История списаний пуста</h3>
+            <p>Здесь будут отображаться проведенные операции</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL: DEDUCT COINS -->
+  <div class="modal-backdrop" id="deduct-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="deduct-modal-title">Списать CodeCoin</h3>
+        <button class="modal-close-btn" id="deduct-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Student Quick Info -->
+        <div class="modal-student-banner">
+          <div class="avatar-lg" id="modal-student-avatar">AA</div>
+          <div class="modal-student-details">
+            <h4 id="modal-student-name">Аскар Аскаров</h4>
+            <p id="modal-student-group">Группа: Frontend-302</p>
+          </div>
+          <div class="modal-student-balance">
+            <span class="balance-label">Текущий баланс</span>
+            <span class="balance-coins" id="modal-student-balance-val">0 CC</span>
+          </div>
+        </div>
+
+        <!-- Mode Toggles inside Modal -->
+        <div class="modal-tabs">
+          <button class="modal-tab-btn active" id="modal-tab-merch">Выбрать мерч</button>
+          <button class="modal-tab-btn" id="modal-tab-custom">Произвольное списание</button>
+        </div>
+
+        <!-- Form 1: Select Merch -->
+        <div class="modal-form-container active" id="modal-form-merch-section">
+          <p class="section-subtitle">Выберите товар из каталога наград:</p>
+          <div class="merch-select-grid" id="modal-merch-grid">
+            <!-- Dynamically populated -->
+          </div>
+
+          <div class="qty-section">
+            <label class="field-label">Количество</label>
+            <div class="qty-counter">
+              <button class="qty-btn" id="qty-minus" type="button" disabled>-</button>
+              <input type="number" id="qty-input" class="qty-input" value="1" min="1" readonly>
+              <button class="qty-btn" id="qty-plus" type="button">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form 2: Custom Deduction -->
+        <div class="modal-form-container" id="modal-form-custom-section">
+          <p class="section-subtitle">Вручную укажите сумму и причину списания:</p>
+          <div class="form-group-wrapper">
+            <div class="form-group">
+              <label for="custom-amount" class="field-label">Количество коинов для списания *</label>
+              <input type="number" id="custom-amount" class="form-input" placeholder="Например: 150" min="1">
+            </div>
+            <div class="form-group">
+              <label for="custom-comment" class="field-label">Комментарий/Причина списания *</label>
+              <input type="text" id="custom-comment" class="form-input" placeholder="Например: Комбо наборы стикеров">
+            </div>
+          </div>
+        </div>
+
+        <!-- Validation & Summary Banner -->
+        <div class="modal-summary-banner" id="modal-summary-section">
+          <div class="summary-cost">
+            <span>Итого к списанию:</span>
+            <strong id="summary-total-cost">0 CC</strong>
+          </div>
+          <div class="summary-remaining">
+            <span>Остаток баланса:</span>
+            <span id="summary-remaining-balance">0 CC</span>
+          </div>
+        </div>
+
+        <!-- Error Notification Banner inside Modal -->
+        <div class="modal-error-banner hidden" id="modal-error-box">
+          <span class="error-icon">⚠️</span>
+          <span class="error-text" id="modal-error-msg">Недостаточно CodeCoin на балансе студента!</span>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-deduct-cancel">Отмена</button>
+        <button class="btn btn-primary" id="btn-deduct-confirm" disabled>Подтвердить списание</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD/EDIT MERCH -->
+  <div class="modal-backdrop" id="merch-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="merch-modal-title">Добавить товар</h3>
+        <button class="modal-close-btn" id="merch-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="merch-form">
+          <input type="hidden" id="merch-edit-id">
+          <div class="form-group">
+            <label for="merch-name" class="field-label">Название товара *</label>
+            <input type="text" id="merch-name" class="form-input" placeholder="Например: Бомбер" required>
+          </div>
+          <div class="form-group">
+            <label for="merch-cost" class="field-label">Стоимость в CodeCoin *</label>
+            <input type="number" id="merch-cost" class="form-input" placeholder="Например: 1500" min="1" required>
+          </div>
+          <div class="form-group">
+            <label for="merch-desc" class="field-label">Краткое описание (опционально)</label>
+            <input type="text" id="merch-desc" class="form-input" placeholder="Например: Размеры S, M, L. Фирменный принт.">
+          </div>
+          <div class="form-group">
+            <label for="merch-icon" class="field-label">Иконка-эмодзи *</label>
+            <input type="text" id="merch-icon" class="form-input" placeholder="Например: 🧥, 🧦, 🥤" value="🎁" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-merch-cancel">Отмена</button>
+        <button class="btn btn-primary" id="btn-merch-save">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
