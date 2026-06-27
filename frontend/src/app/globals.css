@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+
+  ::selection {
+    @apply bg-codify-purple-200 text-codify-purple-900;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+}
+
+@layer components {
+  .input-field {
+    @apply w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm
+           placeholder:text-gray-400
+           focus:outline-none focus:ring-2 focus:ring-codify-purple-500/20 focus:border-codify-purple-500
+           transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5
+           bg-codify-purple-600 text-white text-sm font-medium rounded-xl
+           hover:bg-codify-purple-700 active:scale-[0.97]
+           transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-codify-purple-600 disabled:active:scale-100;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5
+           bg-gray-100 text-gray-700 text-sm font-medium rounded-xl
+           hover:bg-gray-200 active:scale-[0.97]
+           transition-all duration-200;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5
+           bg-red-50 text-red-600 text-sm font-medium rounded-xl
+           hover:bg-red-100 active:scale-[0.97]
+           transition-all duration-200;
+  }
+
+  .badge-green {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
+           bg-codify-green-50 text-codify-green-600 border border-codify-green-100;
+  }
+
+  .badge-gray {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
+           bg-gray-100 text-gray-400;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-gray-100 shadow-card
+           hover:shadow-card-hover transition-all duration-200;
+  }
+}

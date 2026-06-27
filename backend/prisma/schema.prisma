@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  fullName  String
+  role      String   @default("care") // admin | care
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions    CoinTransaction[] @relation("StaffTransactions")
+  reversedTx     CoinTransaction[] @relation("ReversedBy")
+}
+
+model Group {
+  id        String   @id @default(uuid())
+  name      String
+  course    Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  students Student[]
+}
+
+model Student {
+  id          String   @id @default(uuid())
+  fullName    String
+  email       String?
+  groupId     String
+  coinBalance Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  group        Group             @relation(fields: [groupId], references: [id])
+  transactions CoinTransaction[]
+
+  @@index([groupId])
+  @@index([fullName])
+}
+
+model MerchItem {
+  id        String   @id @default(uuid())
+  name      String
+  price     Int
+  imageUrl  String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions CoinTransaction[]
+
+  @@index([isActive, sortOrder])
+}
+
+model CoinTransaction {
+  id           String   @id @default(uuid())
+  studentId    String
+  staffId      String
+  type         String   // "merch" | "manual"
+  merchItemId  String?
+  quantity     Int      @default(1)
+  amount       Int      // always positive (coins spent)
+  comment      String?
+  isReversed   Boolean  @default(false)
+  reversedAt   DateTime?
+  reversedBy   String?
+  createdAt    DateTime @default(now())
+
+  student   Student  @relation(fields: [studentId], references: [id])
+  staff     User     @relation("StaffTransactions", fields: [staffId], references: [id])
+  merchItem MerchItem? @relation(fields: [merchItemId], references: [id])
+  reversedByUser User?  @relation("ReversedBy", fields: [reversedBy], references: [id])
+
+  @@index([studentId, createdAt])
+  @@index([staffId])
+  @@index([createdAt])
+}
