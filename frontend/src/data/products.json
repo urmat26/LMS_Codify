@@ -1,0 +1,56 @@
+[
+  {
+    "id": 1,
+    "name": "Ручка Codify",
+    "description": "Фирменная ручка с логотипом Codify",
+    "price": 50,
+    "stock": 20,
+    "image": "https://placehold.co/300x200/0ea5e9/ffffff?text=Ручка+Codify",
+    "category": "Канцелярия"
+  },
+  {
+    "id": 2,
+    "name": "Блокнот A5",
+    "description": "Блокнот в твёрдой обложке, 120 страниц",
+    "price": 200,
+    "stock": 15,
+    "image": "https://placehold.co/300x200/0284c7/ffffff?text=Блокнот+A5",
+    "category": "Канцелярия"
+  },
+  {
+    "id": 3,
+    "name": "Футболка Codify",
+    "description": "Хлопковая футболка с принтом Codify",
+    "price": 1500,
+    "stock": 8,
+    "image": "https://placehold.co/300x200/0369a1/ffffff?text=Футболка",
+    "category": "Одежда"
+  },
+  {
+    "id": 4,
+    "name": "Кружка Codify",
+    "description": "Керамическая кружка 350 мл",
+    "price": 800,
+    "stock": 12,
+    "image": "https://placehold.co/300x200/38bdf8/ffffff?text=Кружка",
+    "category": "Сувениры"
+  },
+  {
+    "id": 5,
+    "name": "Стикеры набор",
+    "description": "Набор из 5 листов стикеров с логотипом",
+    "price": 100,
+    "stock": 30,
+    "image": "https://placehold.co/300x200/7dd3fc/0369a1?text=Стикеры",
+    "category": "Канцелярия"
+  },
+  {
+    "id": 6,
+    "name": "Рюкзак Codify",
+    "description": "Вместительный рюкзак для ноутбука 15.6\"",
+    "price": 5000,
+    "stock": 5,
+    "image": "https://placehold.co/300x200/075985/ffffff?text=Рюкзак",
+    "category": "Аксессуары"
+  }
+]
