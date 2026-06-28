@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
-import { NotFoundError, ValidationError } from '../utils/errors';
+import { NotFoundError, ValidationError, InsufficientBalanceError } from '../utils/errors';
 
 const withdrawSchema = z
   .object({
@@ -95,9 +95,7 @@ export async function withdraw(
 
         // 2. Check sufficient balance
         if (lockedStudent.coinBalance < totalAmount) {
-          throw new ValidationError(
-            `Недостаточно коинов. Баланс: ${lockedStudent.coinBalance}, требуется: ${totalAmount}`
-          );
+          throw new InsufficientBalanceError(lockedStudent.coinBalance, totalAmount);
         }
 
         // 3. Decrement balance atomically

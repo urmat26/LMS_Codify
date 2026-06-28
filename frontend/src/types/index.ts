@@ -66,3 +66,16 @@ export interface ApiResponse<T> {
     details?: Array<{ field: string; message: string }>;
   };
 }
+
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface TodayStats {
+  studentsServedToday: number;
+  coinsSpentToday: number;
+  totalTransactions: number;
+}

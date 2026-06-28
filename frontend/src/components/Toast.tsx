@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from 'react';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastData {
   type: 'success' | 'error' | 'info';
   message: string;
+  action?: ToastAction;
+  duration?: number;
 }
 
 interface ToastProps {
@@ -13,19 +20,20 @@ interface ToastProps {
   duration?: number;
 }
 
-export function Toast({ toast, onClose, duration = 4000 }: ToastProps) {
+export function Toast({ toast, onClose, duration: defaultDuration = 4000 }: ToastProps) {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     if (toast) {
       setIsVisible(true);
+      const duration = toast.duration ?? defaultDuration;
       const timer = setTimeout(() => {
         setIsVisible(false);
         setTimeout(onClose, 300);
       }, duration);
       return () => clearTimeout(timer);
     }
-  }, [toast, onClose, duration]);
+  }, [toast, onClose, defaultDuration]);
 
   if (!toast) return null;
 
@@ -82,6 +90,18 @@ export function Toast({ toast, onClose, duration = 4000 }: ToastProps) {
           {icon}
         </div>
         <p className="text-sm font-medium leading-snug flex-1">{toast.message}</p>
+        {toast.action && (
+          <button
+            onClick={() => {
+              toast.action?.onClick();
+              setIsVisible(false);
+              setTimeout(onClose, 300);
+            }}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/20 hover:bg-white/30 transition-colors flex-shrink-0"
+          >
+            {toast.action.label}
+          </button>
+        )}
         <button
           onClick={() => {
             setIsVisible(false);

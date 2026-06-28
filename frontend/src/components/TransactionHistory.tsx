@@ -9,6 +9,7 @@ interface TransactionHistoryProps {
   studentName: string;
   isOpen: boolean;
   onClose: () => void;
+  onWithdraw?: () => void;
 }
 
 export function TransactionHistory({
@@ -16,6 +17,7 @@ export function TransactionHistory({
   studentName,
   isOpen,
   onClose,
+  onWithdraw,
 }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,7 +75,7 @@ export function TransactionHistory({
 
       <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-lg mx-auto z-10 max-h-[80vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-gray-100">
           <div>
             <h2 className="text-base font-semibold text-gray-900">История списаний</h2>
             <p className="text-sm text-gray-500 mt-0.5">{studentName}</p>
@@ -89,7 +91,7 @@ export function TransactionHistory({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3 sm:py-4 space-y-3">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <svg className="animate-spin h-6 w-6 text-codify-purple-600" viewBox="0 0 24 24" fill="none">
@@ -112,7 +114,18 @@ export function TransactionHistory({
               <svg className="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-sm text-gray-400">История списаний пуста</p>
+              <p className="text-sm text-gray-400 mb-4">История списаний пуста</p>
+              {onWithdraw && (
+                <button
+                  onClick={onWithdraw}
+                  className="btn-primary"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Списать коины
+                </button>
+              )}
             </div>
           ) : (
             transactions.map((tx) => (
@@ -179,7 +192,7 @@ export function TransactionHistory({
 
         {/* Footer with total */}
         {!loading && transactions.length > 0 && (
-          <div className="px-6 py-4 border-t border-gray-100">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-500">Всего операций</span>
               <span className="font-semibold text-gray-900">{transactions.length}</span>

@@ -21,17 +21,23 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastData | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [undoInfo, setUndoInfo] = useState<{ transactionId: string; studentId: string; timeoutId: number } | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (page?: number, search?: string, limit?: number) => {
     try {
       setIsRefreshing(true);
+      const currentPage = page ?? 1;
+      const currentLimit = limit ?? 50;
       const [groupResponse, catalogResponse] = await Promise.all([
-        api.getGroupStudents(groupId),
+        api.getGroupStudents(groupId, search, currentPage, currentLimit),
         api.getCatalog(),
       ]);
 
       setStudents(groupResponse.data.students);
       setGroupName(groupResponse.data.group.name);
+      setPagination(groupResponse.data.pagination);
       setMerchItems(catalogResponse.data);
       setError(null);
     } catch (err) {
@@ -46,7 +52,7 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
   }, [groupId]);
 
   useEffect(() => {
-    fetchData();
+    fetchData(1);
   }, [fetchData]);
 
   useEffect(() => {
@@ -56,7 +62,7 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
   }, [groupName, onGroupNameChange]);
 
   const handleWithdrawSuccess = useCallback(
-    (studentId: string, newBalance: number) => {
+    (studentId: string, newBalance: number, transactionId: string) => {
       setStudents((prev) =>
         prev.map((s) =>
           s.id === studentId
@@ -64,9 +70,39 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
             : s
         )
       );
+
+      if (undoInfo) {
+        clearTimeout(undoInfo.timeoutId);
+      }
+      const timeoutId = window.setTimeout(() => {
+        setUndoInfo(null);
+      }, 10000);
+      setUndoInfo({ transactionId, studentId, timeoutId });
+
+      setToast({
+        type: 'info',
+        message: 'Коины списаны',
+        duration: 10000,
+        action: {
+          label: 'Отменить',
+          onClick: () => handleUndo(transactionId),
+        },
+      });
     },
-    []
+    [undoInfo]
   );
+
+  const handleUndo = useCallback(async (transactionId: string) => {
+    try {
+      await api.reverseTransaction(transactionId);
+      setUndoInfo(null);
+      setToast({ type: 'success', message: 'Списание отменено, коины возвращены' });
+      fetchData(1);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка при отмене';
+      setToast({ type: 'error', message });
+    }
+  }, [fetchData]);
 
   if (isLoading) {
     return (
@@ -103,7 +139,7 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
         <div className="text-center">
           <p className="text-red-600 mb-3">{error}</p>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(1)}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
           >
             Попробовать снова
@@ -113,15 +149,49 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
     );
   }
 
+  // Cleanup undo timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (undoInfo) clearTimeout(undoInfo.timeoutId);
+    };
+  }, [undoInfo]);
+
+  const handleSearch = useCallback((search: string) => {
+    setSearchQuery(search);
+    fetchData(1, search);
+  }, [fetchData]);
+
+  const handlePageChange = useCallback((page: number) => {
+    fetchData(page, searchQuery);
+  }, [fetchData, searchQuery]);
+
+  const handleExportCSV = useCallback(() => {
+    const a = document.createElement('a');
+    a.href = api.getExportCSVUrl(groupId);
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, [groupId]);
+
   return (
     <>
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       <div className="max-w-5xl mx-auto px-4 py-6">
-        {/* Refresh button */}
-        <div className="flex justify-end mb-2">
+        {/* Top bar: Export + Refresh */}
+        <div className="flex items-center justify-end gap-2 mb-2">
           <button
-            onClick={fetchData}
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 hover:text-codify-purple-600 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            Экспорт CSV
+          </button>
+          <button
+            onClick={() => fetchData(pagination.page, searchQuery)}
             disabled={isRefreshing}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
           >
@@ -146,6 +216,10 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
           students={students}
           groupName={groupName}
           onWithdraw={setSelectedStudent}
+          searchQuery={searchQuery}
+          onSearchChange={handleSearch}
+          pagination={pagination}
+          onPageChange={handlePageChange}
         />
       </div>
 

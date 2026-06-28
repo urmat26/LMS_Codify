@@ -2,16 +2,21 @@ import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import { prisma } from '../utils/prisma';
 import { ValidationError } from '../utils/errors';
+import { getJwtSecret, getJwtExpiresIn } from '../utils/config';
 
-function getJwtSecret(): string {
-  return process.env.JWT_SECRET || 'default-secret';
-}
-
-function getJwtExpiresIn(): string {
-  return process.env.JWT_EXPIRES_IN || '24h';
-}
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: {
+    success: false,
+    error: { code: 'RATE_LIMIT', message: 'Слишком много попыток входа. Повторите через минуту.' },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const router = Router();
 
@@ -20,7 +25,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-router.post('/auth/login', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/auth/login', loginLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 

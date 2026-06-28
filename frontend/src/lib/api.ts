@@ -1,4 +1,4 @@
-import { ApiResponse, Student, MerchItem, Transaction, Group, WithdrawPayload } from '@/types';
+import { ApiResponse, Student, MerchItem, Transaction, Group, WithdrawPayload, PaginationInfo, TodayStats } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -56,17 +56,33 @@ export const api = {
   getGroups: () =>
     request<Group[]>('/groups', { token: getToken() }),
 
-  getGroupStudents: (groupId: string, search?: string) =>
-    request<{ group: Group; students: Student[] }>(
-      `/groups/${groupId}/students${search ? `?search=${encodeURIComponent(search)}` : ''}`,
+  getGroupStudents: (groupId: string, search?: string, page?: number, limit?: number) => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (page) params.set('page', String(page));
+    if (limit) params.set('limit', String(limit));
+    const qs = params.toString();
+    return request<{ group: Group; students: Student[]; pagination: PaginationInfo }>(
+      `/groups/${groupId}/students${qs ? `?${qs}` : ''}`,
       { token: getToken() }
-    ),
+    );
+  },
 
   getStudentTransactions: (studentId: string) =>
     request<{ student: { id: string; fullName: string; coinBalance: number }; transactions: Transaction[] }>(
       `/students/${studentId}/transactions`,
       { token: getToken() }
     ),
+
+  // CSV Export
+  getExportCSVUrl: (groupId: string): string => {
+    const token = getToken();
+    return `${API_BASE}/groups/${groupId}/export-csv?token=${token}`;
+  },
+
+  // Stats
+  getTodayStats: () =>
+    request<TodayStats>('/stats/today', { token: getToken() }),
 
   // Merch catalog
   getCatalog: () =>

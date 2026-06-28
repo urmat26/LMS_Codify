@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
 import { NotFoundError } from '../utils/errors';
@@ -10,7 +11,7 @@ export async function getGroupStudents(
 ): Promise<void> {
   try {
     const { groupId } = req.params;
-    const { search, includeInactive } = req.query;
+    const { search, includeInactive, page: pageStr, limit: limitStr } = req.query;
 
     const group = await prisma.group.findUnique({
       where: { id: groupId },
@@ -20,7 +21,11 @@ export async function getGroupStudents(
       throw new NotFoundError('Группа');
     }
 
-    const whereClause: any = {
+    const page = Math.max(1, parseInt(pageStr as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(limitStr as string) || 50));
+    const skip = (page - 1) * limit;
+
+    const whereClause: Prisma.StudentWhereInput = {
       groupId,
       ...(includeInactive !== 'true' ? { isActive: true } : {}),
       ...(search
@@ -32,23 +37,28 @@ export async function getGroupStudents(
         : {}),
     };
 
-    const students = await prisma.student.findMany({
-      where: whereClause,
-      orderBy: { fullName: 'asc' },
-      include: {
-        transactions: {
-          where: {
-            createdAt: {
-              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+    const [students, total] = await Promise.all([
+      prisma.student.findMany({
+        where: whereClause,
+        orderBy: { fullName: 'asc' },
+        skip,
+        take: limit,
+        include: {
+          transactions: {
+            where: {
+              createdAt: {
+                gte: new Date(new Date().setHours(0, 0, 0, 0)),
+              },
+              isReversed: false,
             },
-            isReversed: false,
+            select: { id: true, amount: true, type: true, createdAt: true },
+            take: 10,
+            orderBy: { createdAt: 'desc' },
           },
-          select: { id: true, amount: true, type: true, createdAt: true },
-          take: 10,
-          orderBy: { createdAt: 'desc' },
         },
-      },
-    });
+      }),
+      prisma.student.count({ where: whereClause }),
+    ]);
 
     const result = students.map((student) => ({
       id: student.id,
@@ -68,6 +78,12 @@ export async function getGroupStudents(
           course: group.course,
         },
         students: result,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
     });
   } catch (err) {

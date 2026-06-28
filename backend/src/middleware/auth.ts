@@ -2,10 +2,7 @@ import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AuthPayload, AuthRequest } from '../types';
 import { ForbiddenError } from '../utils/errors';
-
-function getJwtSecret(): string {
-  return process.env.JWT_SECRET || 'default-secret';
-}
+import { getJwtSecret } from '../utils/config';
 
 export function authenticate(req: AuthRequest, _res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;

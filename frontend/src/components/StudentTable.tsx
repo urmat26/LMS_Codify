@@ -1,37 +1,69 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Student } from '@/types';
+import { useState, useRef, useEffect } from 'react';
+import { Student, PaginationInfo } from '@/types';
 import { TransactionHistory } from './TransactionHistory';
 
 interface StudentTableProps {
   students: Student[];
   groupName: string;
   onWithdraw: (student: Student) => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  pagination?: PaginationInfo;
+  onPageChange?: (page: number) => void;
 }
 
 export function StudentTable({
   students,
   groupName,
   onWithdraw,
+  searchQuery = '',
+  onSearchChange,
+  pagination,
+  onPageChange,
 }: StudentTableProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [localSearch, setLocalSearch] = useState(searchQuery);
   const [historyStudent, setHistoryStudent] = useState<Student | null>(null);
+  const [flashingIds, setFlashingIds] = useState<Set<string>>(new Set());
+  const prevBalancesRef = useRef<Record<string, number>>({});
 
-  const filteredStudents = useMemo(() => {
-    if (!searchQuery.trim()) return students;
-    const query = searchQuery.toLowerCase();
-    return students.filter((student) =>
-      student.fullName.toLowerCase().includes(query)
-    );
-  }, [students, searchQuery]);
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
 
-  const stats = useMemo(() => {
-    const total = students.length;
-    const received = students.filter((s) => s.receivedMerchToday).length;
-    const totalCoins = students.reduce((sum, s) => sum + s.coinBalance, 0);
-    return { total, received, totalCoins };
+  // Detect balance changes and trigger green flash
+  useEffect(() => {
+    const newFlashingIds = new Set<string>();
+    students.forEach((s) => {
+      const prev = prevBalancesRef.current[s.id];
+      if (prev !== undefined && prev !== s.coinBalance) {
+        newFlashingIds.add(s.id);
+      }
+      prevBalancesRef.current[s.id] = s.coinBalance;
+    });
+    if (newFlashingIds.size > 0) {
+      setFlashingIds(newFlashingIds);
+      const timer = setTimeout(() => setFlashingIds(new Set()), 800);
+      return () => clearTimeout(timer);
+    }
   }, [students]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSearchChange?.(localSearch);
+  };
+
+  const handleSearchClear = () => {
+    setLocalSearch('');
+    onSearchChange?.('');
+  };
+
+  const stats = {
+    total: students.length,
+    received: students.filter((s) => s.receivedMerchToday).length,
+    totalCoins: students.reduce((sum, s) => sum + s.coinBalance, 0),
+  };
 
   return (
     <div className="space-y-5">
@@ -40,7 +72,7 @@ export function StudentTable({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span className="font-medium text-gray-900">{stats.total}</span>
+              <span className="font-medium text-gray-900">{pagination?.total ?? stats.total}</span>
               студентов
             </div>
             <div className="w-px h-4 bg-gray-200" />
@@ -56,7 +88,7 @@ export function StudentTable({
               <span className="text-gray-500">
                 Осталось:{' '}
                 <span className="font-medium text-gray-900">
-                  {stats.total - stats.received}
+                  {pagination ? (pagination.total - stats.received) : (stats.total - stats.received)}
                 </span>
               </span>
             </div>
@@ -76,7 +108,7 @@ export function StudentTable({
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
+      <form onSubmit={handleSearchSubmit} className="relative max-w-md">
         <svg
           className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"
           fill="none"
@@ -88,14 +120,15 @@ export function StudentTable({
         </svg>
         <input
           type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          value={localSearch}
+          onChange={(e) => setLocalSearch(e.target.value)}
           placeholder="Поиск по ФИО студента..."
           className="input-field pl-10"
         />
-        {searchQuery && (
+        {localSearch && (
           <button
-            onClick={() => setSearchQuery('')}
+            type="button"
+            onClick={handleSearchClear}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -103,7 +136,7 @@ export function StudentTable({
             </svg>
           </button>
         )}
-      </div>
+      </form>
 
       {/* Table */}
       <div className="card overflow-hidden">
@@ -126,7 +159,7 @@ export function StudentTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredStudents.length === 0 ? (
+              {students.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-5 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
@@ -140,99 +173,125 @@ export function StudentTable({
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((student) => (
-                  <tr
-                    key={student.id}
-                    className={`hover:bg-gray-50/80 transition-colors ${
-                      student.receivedMerchToday ? 'bg-codify-green-50/30' : ''
-                    }`}
-                  >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${
-                            student.receivedMerchToday
-                              ? 'bg-codify-green-100 text-codify-green-700'
-                              : 'bg-codify-purple-100 text-codify-purple-700'
-                          }`}
-                        >
-                          {student.fullName.charAt(0).toUpperCase()}
+                students.map((student) => {
+                  const isFlashing = flashingIds.has(student.id);
+                  return (
+                    <tr
+                      key={student.id}
+                      className={`hover:bg-gray-50/80 transition-colors ${
+                        student.receivedMerchToday ? 'bg-codify-green-50/30' : ''
+                      } ${isFlashing ? 'animate-flash-green' : ''}`}
+                    >
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${
+                              student.receivedMerchToday
+                                ? 'bg-codify-green-100 text-codify-green-700'
+                                : 'bg-codify-purple-100 text-codify-purple-700'
+                            }`}
+                          >
+                            {student.fullName.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">
+                            {student.fullName}
+                          </span>
                         </div>
-                        <span className="text-sm font-medium text-gray-900">
-                          {student.fullName}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <span
-                        className={`text-sm font-bold tabular-nums ${
-                          student.coinBalance >= 1000
-                            ? 'text-codify-green-600'
-                            : student.coinBalance >= 500
-                            ? 'text-amber-600'
-                            : 'text-red-500'
-                        }`}
-                      >
-                        {student.coinBalance.toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-center">
-                      {student.receivedMerchToday ? (
-                        <span className="badge-green">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                          Мерч получен
-                        </span>
-                      ) : (
-                        <span className="badge-gray">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => setHistoryStudent(student)}
-                          className="p-2 rounded-lg text-gray-300 hover:text-codify-purple-600 hover:bg-codify-purple-50 transition-all"
-                          title="История списаний"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => onWithdraw(student)}
-                          disabled={student.receivedMerchToday}
-                          className={`px-4 py-2 text-sm font-medium rounded-xl transition-all active:scale-[0.97] ${
-                            student.receivedMerchToday
-                              ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
-                              : 'bg-codify-blue-50 text-codify-blue-600 hover:bg-codify-blue-100'
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <span
+                          className={`inline-block transition-all duration-500 text-sm font-bold tabular-nums ${
+                            isFlashing
+                              ? 'text-codify-green-500 scale-110'
+                              : student.coinBalance >= 1000
+                              ? 'text-codify-green-600'
+                              : student.coinBalance >= 500
+                              ? 'text-amber-600'
+                              : 'text-red-500'
                           }`}
                         >
-                          {student.receivedMerchToday ? 'Выдано' : 'Списать коины'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {student.coinBalance.toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        {student.receivedMerchToday ? (
+                          <span className="badge-green">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Мерч получен
+                          </span>
+                        ) : (
+                          <span className="badge-gray">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => setHistoryStudent(student)}
+                            className="p-2 rounded-lg text-gray-300 hover:text-codify-purple-600 hover:bg-codify-purple-50 transition-all"
+                            title="История списаний"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => onWithdraw(student)}
+                            disabled={student.receivedMerchToday}
+                            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all active:scale-[0.97] ${
+                              student.receivedMerchToday
+                                ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
+                                : 'bg-codify-blue-50 text-codify-blue-600 hover:bg-codify-blue-100'
+                            }`}
+                          >
+                            {student.receivedMerchToday ? 'Выдано' : 'Списать коины'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Results count */}
-      <div className="flex items-center justify-between text-xs text-gray-400">
-        <span>
-          Показано: {filteredStudents.length} из {students.length}
-        </span>
-        {!searchQuery && (
-          <span>
-            {filteredStudents.length === students.length
-              ? 'Все студенты группы'
-              : `${filteredStudents.length} отфильтровано`}
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-xs text-gray-400">
+            Страница {pagination.page} из {pagination.totalPages} (всего {pagination.total} студентов)
           </span>
-        )}
-      </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onPageChange?.(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              ← Назад
+            </button>
+            <button
+              onClick={() => onPageChange?.(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              Вперёд →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Results count (when no pagination) */}
+      {(!pagination || pagination.totalPages <= 1) && (
+        <div className="flex items-center justify-between text-xs text-gray-400">
+          <span>
+            Показано: {students.length}
+            {pagination ? ` из ${pagination.total}` : ''}
+          </span>
+        </div>
+      )}
 
       {/* Transaction History Modal */}
       {historyStudent && (
@@ -241,6 +300,11 @@ export function StudentTable({
           studentName={historyStudent.fullName}
           isOpen={!!historyStudent}
           onClose={() => setHistoryStudent(null)}
+          onWithdraw={() => {
+            const student = historyStudent;
+            setHistoryStudent(null);
+            onWithdraw(student);
+          }}
         />
       )}
     </div>

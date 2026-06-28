@@ -6,11 +6,12 @@ interface WithdrawResult {
   message: string;
   newBalance: number;
   itemName: string | null;
+  transactionId: string;
 }
 
 interface UseWithdrawReturn {
   withdraw: (studentId: string, payload: WithdrawPayload) => Promise<WithdrawResult>;
-  reverse: (transactionId: string) => Promise<WithdrawResult>;
+  reverse: (transactionId: string) => Promise<{ message: string; newBalance: number }>;
   isProcessing: boolean;
   error: string | null;
   lastResult: WithdrawResult | null;
@@ -21,11 +22,7 @@ interface UseWithdrawReturn {
 export function useWithdraw(): UseWithdrawReturn {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastResult, setLastResult] = useState<{
-    message: string;
-    newBalance: number;
-    itemName: string | null;
-  } | null>(null);
+  const [lastResult, setLastResult] = useState<WithdrawResult | null>(null);
 
   const withdraw = useCallback(async (studentId: string, payload: WithdrawPayload) => {
     setIsProcessing(true);
@@ -38,6 +35,7 @@ export function useWithdraw(): UseWithdrawReturn {
         message: response.data.message,
         newBalance: response.data.newBalance,
         itemName: response.data.itemName,
+        transactionId: response.data.transaction.id,
       };
       setLastResult(result);
       return result;
@@ -56,12 +54,11 @@ export function useWithdraw(): UseWithdrawReturn {
 
     try {
       const response = await api.reverseTransaction(transactionId);
-      const result: WithdrawResult = {
+      const result = {
         message: response.data.message,
         newBalance: response.data.newBalance,
-        itemName: null,
       };
-      setLastResult(result);
+      setLastResult(null);
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Произошла ошибка при отмене';

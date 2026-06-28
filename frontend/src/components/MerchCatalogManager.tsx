@@ -1,9 +1,101 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { MerchItem } from '@/types';
 import { api } from '@/lib/api';
 import { Toast, ToastData } from './Toast';
+
+function SortableItem({
+  item,
+  index,
+  total,
+  onEdit,
+  onArchive,
+}: {
+  item: MerchItem;
+  index: number;
+  total: number;
+  onEdit: (item: MerchItem) => void;
+  onArchive: (item: MerchItem) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`card flex items-center justify-between p-4 ${isDragging ? 'shadow-md' : ''}`}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          {...attributes}
+          {...listeners}
+          className="flex flex-col gap-0.5 flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-300 hover:text-codify-purple-500 transition-colors px-1"
+          title="Перетащить"
+        >
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 6h2v2H8V6zm6 0h2v2h-2V6zM8 11h2v2H8v-2zm6 0h2v2h-2v-2zm-6 5h2v2H8v-2zm6 0h2v2h-2v-2z" />
+          </svg>
+        </button>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-900 truncate">
+            {item.name}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            ID: {item.id.slice(0, 8)}...
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <span className="text-sm font-bold text-codify-purple-600 tabular-nums">
+          {item.price.toLocaleString()} Coins
+        </span>
+        <span className="text-xs text-gray-300">#{item.sortOrder}</span>
+        <button
+          onClick={() => onEdit(item)}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg text-codify-blue-600 hover:bg-codify-blue-50 transition-colors"
+        >
+          Изменить
+        </button>
+        <button
+          onClick={() => onArchive(item)}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+        >
+          Архивировать
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function MerchCatalogManager() {
   const [items, setItems] = useState<MerchItem[]>([]);
@@ -17,6 +109,10 @@ export function MerchCatalogManager() {
   const [formName, setFormName] = useState('');
   const [formPrice, setFormPrice] = useState<number>(0);
   const [formSortOrder, setFormSortOrder] = useState<number>(0);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   const fetchItems = useCallback(async () => {
     try {
@@ -93,24 +189,19 @@ export function MerchCatalogManager() {
     }
   };
 
-  const moveItem = async (index: number, direction: -1 | 1) => {
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= items.length) return;
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-    const newItems = [...items];
-    const temp = newItems[index].sortOrder;
-    newItems[index] = {
-      ...newItems[index],
-      sortOrder: newItems[targetIndex].sortOrder,
-    };
-    newItems[targetIndex] = {
-      ...newItems[targetIndex],
-      sortOrder: temp,
-    };
+    const oldIndex = activeItems.findIndex((i) => i.id === active.id);
+    const newIndex = activeItems.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(activeItems, oldIndex, newIndex);
 
     try {
       await api.reorderMerchItems(
-        newItems.map((item, idx) => ({
+        reordered.map((item, idx) => ({
           id: item.id,
           sortOrder: idx + 1,
         }))
@@ -236,57 +327,29 @@ export function MerchCatalogManager() {
               <p className="text-sm text-gray-400">Нет активных товаров. Добавьте первый товар.</p>
             </div>
           ) : (
-            activeItems.map((item, index) => (
-              <div
-                key={item.id}
-                className="card flex items-center justify-between p-4"
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={activeItems.map((i) => i.id)}
+                strategy={verticalListSortingStrategy}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex flex-col gap-0.5 flex-shrink-0">
-                    <button
-                      onClick={() => moveItem(index, -1)}
-                      disabled={index === 0}
-                      className="text-gray-400 hover:text-codify-purple-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs leading-none transition-colors"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      onClick={() => moveItem(index, 1)}
-                      disabled={index === activeItems.length - 1}
-                      className="text-gray-400 hover:text-codify-purple-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs leading-none transition-colors"
-                    >
-                      ▼
-                    </button>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {item.name}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      ID: {item.id.slice(0, 8)}...
-                    </p>
-                  </div>
+                <div className="space-y-2">
+                  {activeItems.map((item, index) => (
+                    <SortableItem
+                      key={item.id}
+                      item={item}
+                      index={index}
+                      total={activeItems.length}
+                      onEdit={openEdit}
+                      onArchive={setArchiveTarget}
+                    />
+                  ))}
                 </div>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className="text-sm font-bold text-codify-purple-600 tabular-nums">
-                    {item.price.toLocaleString()} Coins
-                  </span>
-                  <span className="text-xs text-gray-300">#{item.sortOrder}</span>
-                  <button
-                    onClick={() => openEdit(item)}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg text-codify-blue-600 hover:bg-codify-blue-50 transition-colors"
-                  >
-                    Изменить
-                  </button>
-                  <button
-                    onClick={() => setArchiveTarget(item)}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg text-red-500 hover:bg-red-50 transition-colors"
-                  >
-                    Архивировать
-                  </button>
-                </div>
-              </div>
-            ))
+              </SortableContext>
+            </DndContext>
           )}
         </div>
 
@@ -329,7 +392,7 @@ export function MerchCatalogManager() {
                 Архивировать товар?
               </h3>
               <p className="text-sm text-gray-500 mb-6">
-                Товар «{archiveTarget.name}» будет скрыт из каталога. Его можно будет восстановить через API.
+                Товар «{archiveTarget.name}» будет скрыт из каталога.
               </p>
               <div className="flex gap-3 justify-center">
                 <button

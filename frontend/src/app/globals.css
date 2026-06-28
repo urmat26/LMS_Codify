@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 @layer base {
   body {
@@ -75,4 +74,13 @@
     @apply bg-white rounded-2xl border border-gray-100 shadow-card
            hover:shadow-card-hover transition-all duration-200;
   }
+}
+
+@keyframes flash-green {
+  0% { background-color: rgba(52, 211, 153, 0.15); }
+  100% { background-color: transparent; }
+}
+
+.animate-flash-green {
+  animation: flash-green 0.8s ease-out;
 }

@@ -25,11 +25,13 @@ async function start() {
   const studentRoutes = (await import('./routes/studentRoutes')).default;
   const merchRoutes = (await import('./routes/merchRoutes')).default;
   const withdrawRoutes = (await import('./routes/withdrawRoutes')).default;
+  const statsRoutes = (await import('./routes/statsRoutes')).default;
 
   app.use('/api', authRoutes);
   app.use('/api', studentRoutes);
   app.use('/api', merchRoutes);
   app.use('/api', withdrawRoutes);
+  app.use('/api', statsRoutes);
 
   // Error handler (must be last)
   app.use(errorHandler);
