@@ -4,33 +4,23 @@ import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
 import { NotFoundError, ValidationError, InsufficientBalanceError } from '../utils/errors';
 
-const withdrawSchema = z
-  .object({
-    type: z.enum(['merch', 'manual']),
-    merchItemId: z.string().uuid().optional(),
-    quantity: z.number().int().min(1).default(1),
-    amount: z.number().int().positive().optional(),
-    comment: z.string().max(500).optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.type === 'merch' && !data.merchItemId) {
-        return false;
-      }
-      if (data.type === 'manual' && !data.amount) {
-        return false;
-      }
-      return true;
-    },
-    {
-      message:
-        'Для списания мерча укажите товар, для произвольного списания — сумму',
-    }
-  );
-
-const reverseSchema = z.object({
-  transactionId: z.string().uuid(),
+const cartItemSchema = z.object({
+  merchItemId: z.string().uuid(),
+  quantity: z.number().int().min(1),
 });
+
+const withdrawSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('merch'),
+    items: z.array(cartItemSchema).min(1, 'Добавьте хотя бы один товар'),
+    comment: z.string().max(500).optional(),
+  }),
+  z.object({
+    type: z.literal('manual'),
+    amount: z.number().int().positive('Сумма должна быть положительной'),
+    comment: z.string().max(500).optional(),
+  }),
+]);
 
 export async function withdraw(
   req: AuthRequest,
@@ -42,7 +32,6 @@ export async function withdraw(
     const staffId = req.user!.userId;
     const body = withdrawSchema.parse(req.body);
 
-    // Fetch student and validate existence
     const student = await prisma.student.findUnique({
       where: { id: studentId },
     });
@@ -52,39 +41,49 @@ export async function withdraw(
     }
 
     let totalAmount = 0;
-    let merchItemName: string | null = null;
-    let finalQuantity = body.quantity ?? 1;
+    let itemNames: string[] = [];
+    let cartResolved: { merchItemId: string; quantity: number; price: number }[] = [];
     let finalComment = body.comment ?? null;
 
-    if (body.type === 'merch' && body.merchItemId) {
-      const merchItem = await prisma.merchItem.findUnique({
-        where: { id: body.merchItemId },
+    if (body.type === 'merch') {
+      const ids = body.items.map((i) => i.merchItemId);
+      const merchItems = await prisma.merchItem.findMany({
+        where: { id: { in: ids }, isActive: true },
       });
 
-      if (!merchItem || !merchItem.isActive) {
-        throw new NotFoundError('Товар');
+      if (merchItems.length !== ids.length) {
+        throw new NotFoundError('Один или несколько товаров не найдены');
       }
 
-      totalAmount = merchItem.price * finalQuantity;
-      merchItemName = merchItem.name;
-    } else if (body.type === 'manual' && body.amount) {
-      totalAmount = body.amount;
-      finalQuantity = 1;
-      finalComment = finalComment || 'Произвольное списание';
+      // Deduplicate: merge same-item entries
+      const merged = new Map<string, number>();
+      for (const item of body.items) {
+        merged.set(item.merchItemId, (merged.get(item.merchItemId) || 0) + item.quantity);
+      }
+
+      const merchMap = new Map(merchItems.map((m) => [m.id, m]));
+      for (const [merchItemId, quantity] of merged) {
+        const merch = merchMap.get(merchItemId);
+        if (!merch) {
+          throw new NotFoundError(`Товар ${merchItemId}`);
+        }
+        const cost = merch.price * quantity;
+        totalAmount += cost;
+        itemNames.push(`${merch.name} ×${quantity}`);
+        cartResolved.push({ merchItemId, quantity, price: merch.price });
+      }
     } else {
-      throw new ValidationError('Некорректные данные для списания');
+      totalAmount = body.amount;
+      finalComment = finalComment || 'Произвольное списание';
     }
 
     if (totalAmount <= 0) {
       throw new ValidationError('Сумма списания должна быть положительной');
     }
 
-    // --- Race condition handling ---
-    // Use Prisma's interactive transaction with serializable isolation
-    // to ensure atomic read-check-update on the student's balance.
-    const transaction = await prisma.$transaction(
+    // Atomic transaction: validate balance, decrement, create records
+    const result = await prisma.$transaction(
       async (tx) => {
-        // 1. Read current balance WITH lock (SELECT FOR UPDATE)
         const lockedStudent = await tx.student.findUnique({
           where: { id: studentId },
         });
@@ -93,12 +92,10 @@ export async function withdraw(
           throw new NotFoundError('Студент');
         }
 
-        // 2. Check sufficient balance
         if (lockedStudent.coinBalance < totalAmount) {
           throw new InsufficientBalanceError(lockedStudent.coinBalance, totalAmount);
         }
 
-        // 3. Decrement balance atomically
         const updatedStudent = await tx.student.update({
           where: { id: studentId },
           data: {
@@ -108,24 +105,52 @@ export async function withdraw(
           },
         });
 
-        // 4. Create transaction record
-        const txRecord = await tx.coinTransaction.create({
+        // Create one transaction record per cart item (or one for manual)
+        if (body.type === 'merch') {
+          const created = await Promise.all(
+            cartResolved.map((item) =>
+              tx.coinTransaction.create({
+                data: {
+                  studentId,
+                  staffId,
+                  type: 'merch',
+                  merchItemId: item.merchItemId,
+                  quantity: item.quantity,
+                  amount: item.price * item.quantity,
+                  comment: body.comment || null,
+                },
+                select: { id: true, amount: true },
+              })
+            )
+          );
+
+          return {
+            transactionIds: created.map((t) => t.id),
+            previousBalance: lockedStudent.coinBalance,
+            newBalance: updatedStudent.coinBalance,
+            itemName: itemNames.join(', ') || null,
+            firstTransactionId: created[0].id,
+          };
+        }
+
+        const record = await tx.coinTransaction.create({
           data: {
             studentId,
             staffId,
-            type: body.type,
-            merchItemId: body.merchItemId ?? null,
-            quantity: finalQuantity,
+            type: 'manual',
             amount: totalAmount,
+            quantity: 1,
             comment: finalComment,
           },
+          select: { id: true, amount: true },
         });
 
         return {
-          transaction: txRecord,
+          transactionIds: [record.id],
           previousBalance: lockedStudent.coinBalance,
           newBalance: updatedStudent.coinBalance,
-          itemName: merchItemName,
+          itemName: null,
+          firstTransactionId: record.id,
         };
       },
       { timeout: 10000 }
@@ -134,10 +159,11 @@ export async function withdraw(
     res.status(201).json({
       success: true,
       data: {
-        transaction: transaction.transaction,
-        previousBalance: transaction.previousBalance,
-        newBalance: transaction.newBalance,
-        itemName: transaction.itemName,
+        transactionIds: result.transactionIds,
+        firstTransactionId: result.firstTransactionId,
+        previousBalance: result.previousBalance,
+        newBalance: result.newBalance,
+        itemName: result.itemName,
         message: `Списание выполнено успешно. Студент: ${student.fullName}, сумма: ${totalAmount} коинов`,
       },
     });
@@ -146,7 +172,7 @@ export async function withdraw(
   }
 }
 
-export async function reverseTransaction(
+export async function cancelTransaction(
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -168,10 +194,8 @@ export async function reverseTransaction(
       throw new ValidationError('Транзакция уже была отменена');
     }
 
-    // Reverse within a serializable transaction
     const result = await prisma.$transaction(
       async (tx) => {
-        // Lock and update student balance
         const lockedStudent = await tx.student.findUnique({
           where: { id: transaction.studentId },
         });
@@ -180,7 +204,6 @@ export async function reverseTransaction(
           throw new NotFoundError('Студент');
         }
 
-        // Return coins to balance
         await tx.student.update({
           where: { id: transaction.studentId },
           data: {
@@ -190,8 +213,7 @@ export async function reverseTransaction(
           },
         });
 
-        // Mark transaction as reversed
-        const reversed = await tx.coinTransaction.update({
+        const cancelled = await tx.coinTransaction.update({
           where: { id: transactionId },
           data: {
             isReversed: true,
@@ -201,7 +223,7 @@ export async function reverseTransaction(
         });
 
         return {
-          reversed,
+          cancelled,
           newBalance: lockedStudent.coinBalance + transaction.amount,
           previousBalance: lockedStudent.coinBalance,
         };
@@ -212,7 +234,7 @@ export async function reverseTransaction(
     res.json({
       success: true,
       data: {
-        transaction: result.reversed,
+        transaction: result.cancelled,
         previousBalance: result.previousBalance,
         newBalance: result.newBalance,
         message: `Транзакция отменена. ${transaction.amount} коинов возвращено на баланс студента.`,

@@ -94,7 +94,7 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
 
   const handleUndo = useCallback(async (transactionId: string) => {
     try {
-      await api.reverseTransaction(transactionId);
+      await api.cancelTransaction(transactionId);
       setUndoInfo(null);
       setToast({ type: 'success', message: 'Списание отменено, коины возвращены' });
       fetchData(1);
@@ -103,6 +103,39 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
       setToast({ type: 'error', message });
     }
   }, [fetchData]);
+
+  // Cleanup undo timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (undoInfo) clearTimeout(undoInfo.timeoutId);
+    };
+  }, [undoInfo]);
+
+  const handleSearch = useCallback((search: string) => {
+    setSearchQuery(search);
+    fetchData(1, search);
+  }, [fetchData]);
+
+  const handlePageChange = useCallback((page: number) => {
+    fetchData(page, searchQuery);
+  }, [fetchData, searchQuery]);
+
+  const handleExportCSV = useCallback(async () => {
+    try {
+      const blob = await api.exportGroupCSV(groupId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Codify_${groupName.replace(/[^a-zA-Zа-яА-Я0-9_\- ]/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка экспорта CSV';
+      setToast({ type: 'error', message });
+    }
+  }, [groupId, groupName]);
 
   if (isLoading) {
     return (
@@ -148,31 +181,6 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
       </div>
     );
   }
-
-  // Cleanup undo timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (undoInfo) clearTimeout(undoInfo.timeoutId);
-    };
-  }, [undoInfo]);
-
-  const handleSearch = useCallback((search: string) => {
-    setSearchQuery(search);
-    fetchData(1, search);
-  }, [fetchData]);
-
-  const handlePageChange = useCallback((page: number) => {
-    fetchData(page, searchQuery);
-  }, [fetchData, searchQuery]);
-
-  const handleExportCSV = useCallback(() => {
-    const a = document.createElement('a');
-    a.href = api.getExportCSVUrl(groupId);
-    a.download = '';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }, [groupId]);
 
   return (
     <>

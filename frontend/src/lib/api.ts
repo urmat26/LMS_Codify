@@ -1,4 +1,4 @@
-import { ApiResponse, Student, MerchItem, Transaction, Group, WithdrawPayload, PaginationInfo, TodayStats } from '@/types';
+import { ApiResponse, Student, MerchItem, Transaction, Group, WithdrawPayload, PaginationInfo, TodayStats, CartItem } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -75,9 +75,16 @@ export const api = {
     ),
 
   // CSV Export
-  getExportCSVUrl: (groupId: string): string => {
+  exportGroupCSV: async (groupId: string): Promise<Blob> => {
     const token = getToken();
-    return `${API_BASE}/groups/${groupId}/export-csv?token=${token}`;
+    const response = await fetch(`${API_BASE}/groups/${groupId}/export-csv`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const json = await response.json().catch(() => null);
+      throw new Error(json?.error?.message || 'Ошибка экспорта CSV');
+    }
+    return response.blob();
   },
 
   // Stats
@@ -106,7 +113,8 @@ export const api = {
   // Withdrawal
   withdraw: (studentId: string, payload: WithdrawPayload) =>
     request<{
-      transaction: Transaction;
+      transactionIds: string[];
+      firstTransactionId: string;
       previousBalance: number;
       newBalance: number;
       itemName: string | null;
@@ -117,13 +125,13 @@ export const api = {
       token: getToken(),
     }),
 
-  reverseTransaction: (transactionId: string) =>
+  cancelTransaction: (transactionId: string) =>
     request<{
       transaction: Transaction;
       previousBalance: number;
       newBalance: number;
       message: string;
-    }>(`/transactions/${transactionId}/reverse`, {
+    }>(`/transactions/${transactionId}/cancel`, {
       method: 'POST',
       token: getToken(),
     }),

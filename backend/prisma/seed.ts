@@ -144,8 +144,9 @@ async function main() {
     }
   }
 
+  const freshMerch = await prisma.merchItem.findMany({ where: { isActive: true } });
   for (const m of merchItems) {
-    const existing = allMerch.find((i) => i.name === m.name && i.isActive);
+    const existing = freshMerch.find((i) => i.name === m.name);
     if (!existing) {
       await prisma.merchItem.create({ data: m });
     } else {

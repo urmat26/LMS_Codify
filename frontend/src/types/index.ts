@@ -49,13 +49,14 @@ export interface Transaction {
   merchItem?: { id: string; name: string; price: number };
 }
 
-export interface WithdrawPayload {
-  type: 'merch' | 'manual';
-  merchItemId?: string;
-  quantity?: number;
-  amount?: number;
-  comment?: string;
+export interface CartItem {
+  merchItemId: string;
+  quantity: number;
 }
+
+export type WithdrawPayload =
+  | { type: 'merch'; items: CartItem[]; comment?: string }
+  | { type: 'manual'; amount: number; comment?: string };
 
 export interface ApiResponse<T> {
   success: boolean;

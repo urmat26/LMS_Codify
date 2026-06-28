@@ -35,7 +35,7 @@ export function useWithdraw(): UseWithdrawReturn {
         message: response.data.message,
         newBalance: response.data.newBalance,
         itemName: response.data.itemName,
-        transactionId: response.data.transaction.id,
+        transactionId: response.data.firstTransactionId,
       };
       setLastResult(result);
       return result;
@@ -53,7 +53,7 @@ export function useWithdraw(): UseWithdrawReturn {
     setError(null);
 
     try {
-      const response = await api.reverseTransaction(transactionId);
+      const response = await api.cancelTransaction(transactionId);
       const result = {
         message: response.data.message,
         newBalance: response.data.newBalance,

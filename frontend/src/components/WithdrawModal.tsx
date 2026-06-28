@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Student, MerchItem, WithdrawPayload } from '@/types';
+import { Student, MerchItem, WithdrawPayload, CartItem } from '@/types';
 import { useWithdraw } from '@/hooks/useWithdraw';
 
 interface WithdrawModalProps {
@@ -19,11 +19,11 @@ export function WithdrawModal({
   onClose,
   onSuccess,
 }: WithdrawModalProps) {
-  const [selectedMerchId, setSelectedMerchId] = useState<string>('');
-  const [quantity, setQuantity] = useState<number>(1);
   const [mode, setMode] = useState<'merch' | 'manual'>('merch');
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [manualAmount, setManualAmount] = useState<number>(0);
   const [manualComment, setManualComment] = useState<string>('');
+  const [merchComment, setMerchComment] = useState<string>('');
   const [confirmStep, setConfirmStep] = useState(false);
   const submitButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -33,16 +33,16 @@ export function WithdrawModal({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedMerchId(merchItems[0]?.id || '');
-      setQuantity(1);
+      setCart([]);
       setMode('merch');
       setManualAmount(0);
       setManualComment('');
+      setMerchComment('');
       setConfirmStep(false);
       clearError();
       clearResult();
     }
-  }, [isOpen, merchItems, clearError, clearResult]);
+  }, [isOpen, clearError, clearResult]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -56,11 +56,43 @@ export function WithdrawModal({
     };
   }, [isOpen]);
 
+  // Add item to cart
+  const addToCart = useCallback((merchItemId: string) => {
+    setCart((prev) => {
+      const existing = prev.find((c) => c.merchItemId === merchItemId);
+      if (existing) {
+        return prev.map((c) =>
+          c.merchItemId === merchItemId
+            ? { ...c, quantity: c.quantity + 1 }
+            : c
+        );
+      }
+      return [...prev, { merchItemId, quantity: 1 }];
+    });
+  }, []);
+
+  // Remove item from cart
+  const removeFromCart = useCallback((merchItemId: string) => {
+    setCart((prev) => prev.filter((c) => c.merchItemId !== merchItemId));
+  }, []);
+
+  // Update quantity for a cart item
+  const updateCartQty = useCallback((merchItemId: string, quantity: number) => {
+    if (quantity < 1) return;
+    setCart((prev) =>
+      prev.map((c) =>
+        c.merchItemId === merchItemId ? { ...c, quantity } : c
+      )
+    );
+  }, []);
+
   // Calculate total cost
-  const selectedItem = merchItems.find((item) => item.id === selectedMerchId);
   const totalCost =
-    mode === 'merch' && selectedItem
-      ? selectedItem.price * quantity
+    mode === 'merch'
+      ? cart.reduce((sum, c) => {
+          const item = merchItems.find((m) => m.id === c.merchItemId);
+          return sum + (item ? item.price * c.quantity : 0);
+        }, 0)
       : manualAmount;
 
   const hasEnoughBalance = student.coinBalance >= totalCost;
@@ -68,7 +100,7 @@ export function WithdrawModal({
     totalCost > 0 &&
     hasEnoughBalance &&
     !isProcessing &&
-    (mode === 'merch' ? selectedMerchId !== '' : manualAmount > 0);
+    (mode === 'merch' ? cart.length > 0 : manualAmount > 0);
 
   // Handle actual withdrawal (called from confirm step)
   const handleSubmit = useCallback(async () => {
@@ -80,7 +112,7 @@ export function WithdrawModal({
 
     const payload: WithdrawPayload =
       mode === 'merch'
-        ? { type: 'merch', merchItemId: selectedMerchId, quantity }
+        ? { type: 'merch', items: cart, comment: merchComment || undefined }
         : { type: 'manual', amount: manualAmount, comment: manualComment || undefined };
 
     try {
@@ -91,7 +123,7 @@ export function WithdrawModal({
       // Error handled by hook's error state (inline display)
     }
   }, [
-    canSubmit, isProcessing, mode, selectedMerchId, quantity,
+    canSubmit, isProcessing, mode, cart, merchComment,
     manualAmount, manualComment, student, withdraw, onSuccess, onClose,
   ]);
 
@@ -112,9 +144,16 @@ export function WithdrawModal({
 
   if (!isOpen) return null;
 
+  // Build summary label for confirm step
   const summaryLabel =
-    mode === 'merch' && selectedItem
-      ? `${selectedItem.name} × ${quantity}`
+    mode === 'merch'
+      ? cart
+          .map((c) => {
+            const item = merchItems.find((m) => m.id === c.merchItemId);
+            return item ? `${item.name} ×${c.quantity}` : '';
+          })
+          .filter(Boolean)
+          .join(', ')
       : manualComment || 'Произвольное списание';
 
   return (
@@ -155,7 +194,7 @@ export function WithdrawModal({
           {!confirmStep ? (
             /* ---- FORM STEP ---- */
             <>
-              <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 sm:space-y-5">
+              <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 sm:space-y-5 max-h-[60vh] overflow-y-auto">
                 {/* Current balance block */}
                 <div className={`rounded-xl p-4 border transition-colors ${
                   hasEnoughBalance || totalCost === 0
@@ -205,7 +244,7 @@ export function WithdrawModal({
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Товар мерча
+                    Корзина товаров
                   </button>
                   <button
                     onClick={() => setMode('manual')}
@@ -219,71 +258,111 @@ export function WithdrawModal({
                   </button>
                 </div>
 
-                {/* Tab content: Merch */}
+                {/* Tab content: Cart */}
                 {mode === 'merch' && (
                   <div className="space-y-4">
+                    {/* Available items grid */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Выберите товар
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Доступные товары
                       </label>
-                      <div className="relative">
-                        <select
-                          value={selectedMerchId}
-                          onChange={(e) => setSelectedMerchId(e.target.value)}
-                          className="input-field appearance-none pr-10"
-                        >
-                          {merchItems.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name} — {item.price} Coins
-                            </option>
-                          ))}
-                        </select>
-                        <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {merchItems.map((item) => {
+                          const inCart = cart.find((c) => c.merchItemId === item.id);
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => addToCart(item.id)}
+                              className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
+                                inCart
+                                  ? 'bg-codify-purple-50 border-codify-purple-200'
+                                  : 'bg-white border-gray-200 hover:border-codify-purple-200 hover:bg-codify-purple-50/30'
+                              }`}
+                            >
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                                <p className="text-xs text-gray-500">{item.price} Coins</p>
+                              </div>
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                                inCart
+                                  ? 'bg-codify-purple-200 text-codify-purple-700'
+                                  : 'bg-gray-100 text-gray-400'
+                              }`}>
+                                {inCart ? inCart.quantity : '+'}
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
-                    {/* Quantity stepper */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Количество
-                      </label>
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                          disabled={quantity <= 1}
-                          className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
-                          </svg>
-                        </button>
-                        <span className="w-14 text-center text-lg font-semibold text-gray-900 tabular-nums">
-                          {quantity}
-                        </span>
-                        <button
-                          onClick={() => setQuantity(quantity + 1)}
-                          className="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-all"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-
-                    {selectedItem && (
-                      <div className="rounded-xl bg-codify-purple-50 border border-codify-purple-100 p-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-codify-purple-700">
-                            {selectedItem.name} × {quantity}
-                          </span>
-                          <span className="text-lg font-bold text-codify-purple-700 tabular-nums">
-                            {totalCost.toLocaleString()} Coins
-                          </span>
+                    {/* Cart summary */}
+                    {cart.length > 0 && (
+                      <>
+                        <div className="border-t border-gray-100 pt-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-gray-700">Корзина</label>
+                            <span className="text-xs text-gray-400">{cart.reduce((s, c) => s + c.quantity, 0)} шт.</span>
+                          </div>
+                          <div className="space-y-2">
+                            {cart.map((c) => {
+                              const item = merchItems.find((m) => m.id === c.merchItemId);
+                              if (!item) return null;
+                              return (
+                                <div
+                                  key={c.merchItemId}
+                                  className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <button
+                                      onClick={() => removeFromCart(c.merchItemId)}
+                                      className="w-6 h-6 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-200 flex-shrink-0"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                      </svg>
+                                    </button>
+                                    <span className="text-sm text-gray-900 truncate">{item.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button
+                                      onClick={() => updateCartQty(c.merchItemId, c.quantity - 1)}
+                                      disabled={c.quantity <= 1}
+                                      className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30"
+                                    >
+                                      −
+                                    </button>
+                                    <span className="w-6 text-center text-sm font-semibold tabular-nums">{c.quantity}</span>
+                                    <button
+                                      onClick={() => updateCartQty(c.merchItemId, c.quantity + 1)}
+                                      className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100"
+                                    >
+                                      +
+                                    </button>
+                                    <span className="text-sm font-bold text-gray-900 tabular-nums w-14 text-right">
+                                      {(item.price * c.quantity).toLocaleString()}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
+
+                        {/* Cart comment */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                            Комментарий <span className="text-gray-400 font-normal">(необязательно)</span>
+                          </label>
+                          <textarea
+                            value={merchComment}
+                            onChange={(e) => setMerchComment(e.target.value)}
+                            className="input-field min-h-[60px] resize-none"
+                            placeholder="Добавьте комментарий к выдаче..."
+                            rows={2}
+                          />
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
