@@ -144,6 +144,8 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
         },
       ];
 
+  const condensed = !isPinned && !isOpen;
+
   const handleHamburgerClick = () => {
     if (isPinned || isTouchDevice) {
       setIsOpen(!isOpen);
@@ -191,45 +193,49 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
       <div
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white shadow-xl border-r border-gray-100 transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed top-0 left-0 z-50 h-full bg-white shadow-xl border-r border-gray-100 transition-all duration-300 ease-in-out ${
+          condensed ? 'w-16 translate-x-0' : isPinned && !isOpen ? 'w-64 -translate-x-full' : 'w-64 translate-x-0'
         }`}
       >
         {/* Drawer header */}
-        <div className="flex items-center justify-between px-5 h-16 border-b border-gray-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-codify-purple-600 to-codify-purple-800 flex items-center justify-center">
+        <div className="flex items-center h-16 border-b border-gray-100 px-5">
+          <div className={`flex items-center gap-2.5 ${condensed ? 'justify-center w-full' : ''}`}>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-codify-purple-600 to-codify-purple-800 flex items-center justify-center shrink-0">
               <span className="text-white text-sm font-bold">C</span>
             </div>
-            <span className="text-base font-semibold text-gray-900">Кодифай</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setIsPinned(!isPinned)}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                isPinned
-                  ? 'text-codify-purple-600 hover:bg-codify-purple-50'
-                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-              }`}
-              title={isPinned ? 'Открепить меню' : 'Закрепить меню'}
-            >
-              <PinIcon />
-            </button>
-            {isPinned && (
-              <button
-                onClick={() => setIsOpen(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            {!condensed && (
+              <>
+                <span className="text-base font-semibold text-gray-900">Кодифай</span>
+                <div className="flex items-center gap-1 ml-auto">
+                  <button
+                    onClick={() => setIsPinned(!isPinned)}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                      isPinned
+                        ? 'text-codify-purple-600 hover:bg-codify-purple-50'
+                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                    }`}
+                    title={isPinned ? 'Открепить меню' : 'Закрепить меню'}
+                  >
+                    <PinIcon />
+                  </button>
+                  {isPinned && (
+                    <button
+                      onClick={() => setIsOpen(false)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
 
         {/* Nav items */}
-        <nav className="p-4 space-y-1">
+        <nav className="p-3 space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -239,7 +245,9 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
                 onClick={() => {
                   if (!item.disabled) setIsOpen(false);
                 }}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                className={`flex items-center rounded-xl text-sm font-medium transition-all ${
+                  condensed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5'
+                } ${
                   isActive
                     ? 'bg-codify-purple-50 text-codify-purple-700'
                     : item.disabled
@@ -247,14 +255,20 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
-                <span className={isActive ? 'text-codify-purple-600' : item.disabled ? 'text-gray-300' : 'text-gray-400'}>
-                  {item.icon}
-                </span>
-                {item.label}
-                {item.disabled && (
-                  <span className="ml-auto text-[10px] text-gray-300 bg-gray-100 px-1.5 py-0.5 rounded">
-                    Admin
+                <span className={condensed ? '' : 'shrink-0'}>
+                  <span className={isActive ? 'text-codify-purple-600' : item.disabled ? 'text-gray-300' : 'text-gray-400'}>
+                    {item.icon}
                   </span>
+                </span>
+                {!condensed && (
+                  <>
+                    <span className="truncate">{item.label}</span>
+                    {item.disabled && (
+                      <span className="ml-auto text-[10px] text-gray-300 bg-gray-100 px-1.5 py-0.5 rounded">
+                        Admin
+                      </span>
+                    )}
+                  </>
                 )}
               </Link>
             );
@@ -262,9 +276,11 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
         </nav>
 
         {/* Bottom section */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100">
-          <p className="text-xs text-gray-400 text-center">Codify LMS v1.0</p>
-        </div>
+        {!condensed && (
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100">
+            <p className="text-xs text-gray-400 text-center">Codify LMS v1.0</p>
+          </div>
+        )}
       </div>
     </>
   );
