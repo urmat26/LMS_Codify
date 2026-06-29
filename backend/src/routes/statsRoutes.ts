@@ -5,8 +5,7 @@ import { getTodayStats } from '../controllers/statsController';
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize('admin', 'care'));
 
-router.get('/stats/today', getTodayStats);
+router.get('/stats/today', authorize('admin', 'care'), getTodayStats);
 
 export default router;

@@ -9,11 +9,10 @@ const router = Router();
 
 router.use(authenticate);
 router.use(auditMiddleware);
-router.use(authorize('admin', 'care'));
 
-router.get('/groups', getAllGroups);
-router.get('/groups/:groupId/students', getGroupStudents);
-router.get('/groups/:groupId/export-csv', exportGroupCSV);
-router.get('/students/:studentId/transactions', getStudentTransactions);
+router.get('/groups', authorize('admin', 'care'), getAllGroups);
+router.get('/groups/:groupId/students', authorize('admin', 'care'), getGroupStudents);
+router.get('/groups/:groupId/export-csv', authorize('admin', 'care'), exportGroupCSV);
+router.get('/students/:studentId/transactions', authorize('admin', 'care'), getStudentTransactions);
 
 export default router;
