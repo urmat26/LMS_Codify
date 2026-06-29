@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -11,30 +11,79 @@ interface SidebarProps {
 
 export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isPinned, setIsPinned] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
+    const stored = localStorage.getItem('sidebar_pinned');
+    if (stored !== null) {
+      setIsPinned(stored === 'true');
+    }
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    localStorage.setItem('sidebar_pinned', String(isPinned));
+  }, [isPinned, mounted]);
+
+  useEffect(() => {
+    if (isOpen || !isPinned) {
+      document.body.style.overflow = '';
     } else {
       document.body.style.overflow = '';
     }
+    if (isOpen && isPinned) {
+      document.body.style.overflow = 'hidden';
+    }
     return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
+  }, [isOpen, isPinned]);
 
   useEffect(() => {
-    setIsOpen(false);
-  }, [pathname]);
+    if (isPinned) setIsOpen(false);
+  }, [pathname, isPinned]);
 
   useEffect(() => {
+    if (!isPinned) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) setIsOpen(false);
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen]);
+  }, [isOpen, isPinned]);
 
   type NavItem = { label: string; href: string; icon: React.ReactNode; disabled?: boolean };
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (isPinned) return;
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setIsOpen(true);
+  }, [isPinned]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (isPinned) return;
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 300);
+  }, [isPinned]);
+
+  const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window;
+
+  const PinIcon = () => (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      {isPinned ? (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <circle cx="12" cy="12" r="3" fill="currentColor" />
+        </>
+      ) : (
+        <circle cx="12" cy="12" r="8" />
+      )}
+    </svg>
+  );
+
   const navItems: NavItem[] = isStudent
     ? [
         {
@@ -95,11 +144,19 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
         },
       ];
 
+  const handleHamburgerClick = () => {
+    if (isPinned || isTouchDevice) {
+      setIsOpen(!isOpen);
+    } else if (!isOpen) {
+      setIsOpen(true);
+    }
+  };
+
   return (
     <>
       {/* Hamburger button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleHamburgerClick}
         className="relative w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-codify-purple-600 hover:bg-codify-purple-50 transition-all"
         aria-label={isOpen ? 'Закрыть меню' : 'Открыть меню'}
       >
@@ -122,8 +179,8 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
         </div>
       </button>
 
-      {/* Backdrop overlay */}
-      {isOpen && (
+      {/* Backdrop overlay — only when pinned */}
+      {isPinned && isOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm transition-opacity duration-300"
           onClick={() => setIsOpen(false)}
@@ -132,6 +189,8 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
 
       {/* Drawer */}
       <div
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className={`fixed top-0 left-0 z-50 h-full w-64 bg-white shadow-xl border-r border-gray-100 transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
@@ -144,14 +203,29 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
             </div>
             <span className="text-base font-semibold text-gray-900">Кодифай</span>
           </div>
-          <button
-            onClick={() => setIsOpen(false)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsPinned(!isPinned)}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                isPinned
+                  ? 'text-codify-purple-600 hover:bg-codify-purple-50'
+                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+              }`}
+              title={isPinned ? 'Открепить меню' : 'Закрепить меню'}
+            >
+              <PinIcon />
+            </button>
+            {isPinned && (
+              <button
+                onClick={() => setIsOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Nav items */}
