@@ -194,6 +194,11 @@ export async function cancelTransaction(
       throw new ValidationError('Транзакция уже была отменена');
     }
 
+    const hoursSinceCreation = (Date.now() - transaction.createdAt.getTime()) / (1000 * 60 * 60);
+    if (hoursSinceCreation > 24) {
+      throw new ValidationError('Транзакция может быть отменена только в течение 24 часов после создания');
+    }
+
     const result = await prisma.$transaction(
       async (tx) => {
         const lockedStudent = await tx.student.findUnique({

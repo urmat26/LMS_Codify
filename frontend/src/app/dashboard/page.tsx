@@ -25,7 +25,12 @@ export default function DashboardPage() {
       return;
     }
 
-    setUser(JSON.parse(userData));
+    const u = JSON.parse(userData);
+    if (u.role !== 'admin' && u.role !== 'care') {
+      router.push('/shop');
+      return;
+    }
+    setUser(u);
   }, [router]);
 
   useEffect(() => {

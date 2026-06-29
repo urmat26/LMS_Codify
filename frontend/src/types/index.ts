@@ -24,12 +24,50 @@ export interface Student {
 export interface MerchItem {
   id: string;
   name: string;
+  description: string | null;
   price: number;
+  category: string | null;
+  stock: number;
   imageUrl: string | null;
   sortOrder: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  sizes: MerchSize[];
+}
+
+export interface MerchSize {
+  id: string;
+  merchItemId: string;
+  size: string;
+  quantity: number;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  userId: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  metadata: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  user: { id: string; fullName: string } | null;
+}
+
+export interface Purchase {
+  id: string;
+  studentId: string;
+  merchItemId: string;
+  size: string | null;
+  quantity: number;
+  totalAmount: number;
+  status: 'pending' | 'collected' | 'cancelled';
+  createdAt: string;
+  collectedAt: string | null;
+  merchItem: { id: string; name: string; price: number; imageUrl: string | null } | null;
+  student?: { id: string; fullName: string };
 }
 
 export interface Transaction {

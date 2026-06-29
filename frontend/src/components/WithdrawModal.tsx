@@ -127,20 +127,33 @@ export function WithdrawModal({
     manualAmount, manualComment, student, withdraw, onSuccess, onClose,
   ]);
 
-  // Handle keyboard: ESC to close
+  // Handle keyboard: ESC to close/back, Ctrl+Enter to submit
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (!isOpen) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
         if (confirmStep) {
           setConfirmStep(false);
         } else {
           onClose();
         }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (confirmStep && canSubmit && !isProcessing) {
+          e.preventDefault();
+          handleSubmit();
+        }
+        if (!confirmStep && canSubmit && !isProcessing) {
+          e.preventDefault();
+          setConfirmStep(true);
+        }
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen, onClose, confirmStep]);
+  }, [isOpen, onClose, confirmStep, canSubmit, isProcessing, handleSubmit]);
 
   if (!isOpen) return null;
 
@@ -261,6 +274,30 @@ export function WithdrawModal({
                 {/* Tab content: Cart */}
                 {mode === 'merch' && (
                   <div className="space-y-4">
+                    {/* Graduation set shortcut */}
+                    <div>
+                      <button
+                        onClick={() => {
+                          const hoodie = merchItems.find((i) => i.name.includes('Худи') || i.name.includes('худи'));
+                          const socks = merchItems.find((i) => i.name.includes('Носки') || i.name.includes('носки'));
+                          const stickers = merchItems.find((i) => i.name.includes('Стикеры') || i.name.includes('стикеры'));
+                          const items = [hoodie, socks, stickers].filter(Boolean) as MerchItem[];
+                          // Clear existing cart and add graduation set
+                          setCart(items.map((i) => ({ merchItemId: i.id, quantity: 1 })));
+                        }}
+                        className="w-full flex items-center gap-3 p-3 mb-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50 hover:bg-amber-50 hover:border-amber-400 transition-all text-left"
+                      >
+                        <span className="text-lg">🎓</span>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-amber-800">Выпускной набор</p>
+                          <p className="text-xs text-amber-600">Худи + Носки + Стикеры · одним кликом</p>
+                        </div>
+                        <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
+                          1300 Coins
+                        </span>
+                      </button>
+                    </div>
+
                     {/* Available items grid */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -428,7 +465,7 @@ export function WithdrawModal({
               </div>
 
               {/* Footer (form step) */}
-              <div className="px-4 sm:px-6 pb-4 sm:pb-6 flex justify-end gap-3">
+              <div className="px-4 sm:px-6 pb-3 sm:pb-4 flex justify-end gap-3">
                 <button onClick={onClose} className="btn-secondary">
                   Отмена
                 </button>
@@ -443,6 +480,12 @@ export function WithdrawModal({
                 >
                   Списать {totalCost > 0 ? `${totalCost.toLocaleString()} Coins` : ''}
                 </button>
+              </div>
+              <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+                <p className="text-xs text-gray-400 text-center sm:text-right">
+                  <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-mono">Esc</kbd> — закрыть ·{' '}
+                  <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-mono">Ctrl+Enter</kbd> — далее
+                </p>
               </div>
             </>
           ) : (
@@ -497,7 +540,7 @@ export function WithdrawModal({
               </div>
 
               {/* Footer (confirm step) */}
-              <div className="px-4 sm:px-6 pb-4 sm:pb-6 flex justify-end gap-3">
+              <div className="px-4 sm:px-6 pb-3 sm:pb-4 flex justify-end gap-3">
                 <button
                   onClick={() => setConfirmStep(false)}
                   className="btn-secondary"
@@ -526,6 +569,12 @@ export function WithdrawModal({
                     'Подтвердить списание'
                   )}
                 </button>
+              </div>
+              <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+                <p className="text-xs text-gray-400 text-center sm:text-right">
+                  <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-mono">Esc</kbd> — назад ·{' '}
+                  <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-mono">Ctrl+Enter</kbd> — подтвердить
+                </p>
               </div>
             </>
           )}

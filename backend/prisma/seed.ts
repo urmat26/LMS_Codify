@@ -122,13 +122,42 @@ async function main() {
     console.log(`  ${students.length} students created`);
   }
 
+  // Create a student user account
+  const studentPassword = await bcrypt.hash('student123', 10);
+  const studentUser = await prisma.user.upsert({
+    where: { email: 'student@codify.ru' },
+    update: {},
+    create: {
+      email: 'student@codify.ru',
+      password: studentPassword,
+      fullName: 'Иванов Иван Иванович',
+      role: 'student',
+    },
+  });
+  console.log(`Student user created: ${studentUser.email}`);
+
+  // Link student-1 to the student user account
+  await prisma.student.update({
+    where: { id: 'student-1' },
+    data: { userId: studentUser.id },
+  });
+  console.log('student-1 linked to student user');
+
   // Seed merch items — cleanup duplicates, keep only first per name
-  const merchItems = [
-    { name: 'Худи', price: 1000, sortOrder: 1 },
-    { name: 'Носки', price: 200, sortOrder: 2 },
-    { name: 'Стикеры', price: 100, sortOrder: 3 },
-    { name: 'Бомбер', price: 2500, sortOrder: 4 },
-    { name: 'Кружка', price: 500, sortOrder: 5 },
+  const merchItems: Array<{
+    name: string;
+    description: string;
+    price: number;
+    category: string;
+    stock: number;
+    sortOrder: number;
+    sizes?: { size: string; quantity: number }[];
+  }> = [
+    { name: 'Худи', description: 'Теплое брендированное худи оверсайз', price: 1000, category: 'Одежда', stock: 20, sortOrder: 1, sizes: [{ size: 'S', quantity: 5 }, { size: 'M', quantity: 8 }, { size: 'L', quantity: 5 }, { size: 'XL', quantity: 2 }] },
+    { name: 'Носки', description: 'Фирменные носки «Код живи, век учись»', price: 200, category: 'Одежда', stock: 50, sortOrder: 2, sizes: [{ size: '35-37', quantity: 25 }, { size: '38-40', quantity: 25 }] },
+    { name: 'Стикеры', description: 'Набор IT-стикеров для ноутбука', price: 100, category: 'Сувениры', stock: 100, sortOrder: 3 },
+    { name: 'Бомбер', description: 'Стильный осенний бомбер LMS Codify', price: 2500, category: 'Одежда', stock: 10, sortOrder: 4, sizes: [{ size: 'S', quantity: 3 }, { size: 'M', quantity: 4 }, { size: 'L', quantity: 2 }, { size: 'XL', quantity: 1 }] },
+    { name: 'Кружка', description: 'Керамическая кружка с принтом для кофе', price: 500, category: 'Сувениры', stock: 30, sortOrder: 5 },
   ];
 
   const allMerch = await prisma.merchItem.findMany({ orderBy: { createdAt: 'asc' } });
@@ -148,12 +177,37 @@ async function main() {
   for (const m of merchItems) {
     const existing = freshMerch.find((i) => i.name === m.name);
     if (!existing) {
-      await prisma.merchItem.create({ data: m });
+      const created = await prisma.merchItem.create({
+        data: {
+          name: m.name,
+          description: m.description,
+          price: m.price,
+          category: m.category,
+          stock: m.stock,
+          sortOrder: m.sortOrder,
+          sizes: m.sizes ? { create: m.sizes } : undefined,
+        },
+      });
+      console.log(`  Created: ${created.name}`);
     } else {
       await prisma.merchItem.update({
         where: { id: existing.id },
-        data: { price: m.price, sortOrder: m.sortOrder },
+        data: {
+          description: m.description,
+          price: m.price,
+          category: m.category,
+          stock: m.stock,
+          sortOrder: m.sortOrder,
+        },
       });
+      // Update sizes: delete old, create new
+      await prisma.merchSize.deleteMany({ where: { merchItemId: existing.id } });
+      if (m.sizes) {
+        await prisma.merchSize.createMany({
+          data: m.sizes.map((s) => ({ merchItemId: existing.id, size: s.size, quantity: s.quantity })),
+        });
+      }
+      console.log(`  Updated: ${existing.name}`);
     }
   }
   console.log('Merch items synced');

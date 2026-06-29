@@ -2,7 +2,8 @@ import { Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
-import { NotFoundError } from '../utils/errors';
+import { NotFoundError, ForbiddenError } from '../utils/errors';
+import { getFilteredGroupIds } from './groupController';
 
 export async function getGroupStudents(
   req: AuthRequest,
@@ -10,8 +11,15 @@ export async function getGroupStudents(
   next: NextFunction
 ): Promise<void> {
   try {
+    const userId = req.user!.userId;
     const { groupId } = req.params;
     const { search, includeInactive, page: pageStr, limit: limitStr } = req.query;
+
+    // Check staff group access
+    const allowedGroupIds = await getFilteredGroupIds(userId);
+    if (allowedGroupIds && !allowedGroupIds.includes(groupId)) {
+      throw new ForbiddenError('У вас нет доступа к этой группе');
+    }
 
     const group = await prisma.group.findUnique({
       where: { id: groupId },

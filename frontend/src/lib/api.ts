@@ -1,6 +1,6 @@
-import { ApiResponse, Student, MerchItem, Transaction, Group, WithdrawPayload, PaginationInfo, TodayStats, CartItem } from '@/types';
+import { ApiResponse, Student, MerchItem, MerchSize, Transaction, Group, WithdrawPayload, PaginationInfo, TodayStats, CartItem, Purchase, AuditLogEntry } from '@/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -47,9 +47,21 @@ function getToken(): string | undefined {
 export const api = {
   // Auth
   login: (email: string, password: string) =>
-    request<{ token: string; user: { id: string; email: string; fullName: string; role: string } }>(
+    request<{ token: string; user: { id: string; email: string; fullName: string; role: string; student?: { id: string; coinBalance: number; groupId: string } } }>(
       '/auth/login',
       { method: 'POST', body: { email, password } }
+    ),
+
+  register: (data: { email: string; password: string; fullName: string; groupId: string }) =>
+    request<{ token: string; user: { id: string; email: string; fullName: string; role: string; student: { id: string; coinBalance: number; groupId: string } } }>(
+      '/auth/register',
+      { method: 'POST', body: data }
+    ),
+
+  getMe: () =>
+    request<{ id: string; email: string; fullName: string; role: string; student?: { id: string; coinBalance: number; groupId: string } }>(
+      '/auth/me',
+      { token: getToken() }
     ),
 
   // Students & Groups
@@ -92,16 +104,21 @@ export const api = {
     request<TodayStats>('/stats/today', { token: getToken() }),
 
   // Merch catalog
-  getCatalog: () =>
-    request<MerchItem[]>('/merch/catalog', { token: getToken() }),
+  getCatalog: (category?: string, search?: string) => {
+    const params = new URLSearchParams();
+    if (category && category !== 'Все') params.set('category', category);
+    if (search) params.set('search', search);
+    const qs = params.toString();
+    return request<MerchItem[]>(`/merch/catalog${qs ? `?${qs}` : ''}`, { token: getToken() });
+  },
 
   getAllMerchItems: () =>
     request<MerchItem[]>('/merch/items', { token: getToken() }),
 
-  createMerchItem: (data: { name: string; price: number; imageUrl?: string; sortOrder?: number }) =>
+  createMerchItem: (data: { name: string; description?: string; price: number; category?: string; stock?: number; imageUrl?: string; sortOrder?: number }) =>
     request<MerchItem>('/merch/items', { method: 'POST', body: data, token: getToken() }),
 
-  updateMerchItem: (itemId: string, data: Partial<{ name: string; price: number; imageUrl: string; sortOrder: number; isActive: boolean }>) =>
+  updateMerchItem: (itemId: string, data: Partial<{ name: string; description: string; price: number; category: string; stock: number; imageUrl: string; sortOrder: number; isActive: boolean }>) =>
     request<MerchItem>(`/merch/items/${itemId}`, { method: 'PUT', body: data, token: getToken() }),
 
   archiveMerchItem: (itemId: string) =>
@@ -135,4 +152,63 @@ export const api = {
       method: 'POST',
       token: getToken(),
     }),
+
+  // Deposit (admin only)
+  deposit: (studentId: string, data: { amount: number; reason: string }) =>
+    request<{ newBalance: number; message: string }>(`/students/${studentId}/deposit`, {
+      method: 'POST',
+      body: data,
+      token: getToken(),
+    }),
+
+  // Student shop
+  getShopCatalog: (category?: string, search?: string) => {
+    const params = new URLSearchParams();
+    if (category && category !== 'Все') params.set('category', category);
+    if (search) params.set('search', search);
+    const qs = params.toString();
+    return request<MerchItem[]>(`/merch/catalog${qs ? `?${qs}` : ''}`, { token: getToken() });
+  },
+
+  purchase: (items: Array<{ merchItemId: string; quantity: number; size?: string }>) =>
+    request<{ purchases: Purchase[]; newBalance: number; message: string }>('/merch/purchase', {
+      method: 'POST',
+      body: { items },
+      token: getToken(),
+    }),
+
+  getMyPurchases: () =>
+    request<Purchase[]>('/purchases', { token: getToken() }),
+
+  collectPurchase: (purchaseId: string) =>
+    request<Purchase>('/purchases/' + purchaseId + '/collect', {
+      method: 'PUT',
+      token: getToken(),
+    }),
+
+  getAllPurchases: () =>
+    request<Purchase[]>('/admin/purchases', { token: getToken() }),
+
+  getStaffGroupAssignments: () =>
+    request<Array<{ user: { id: string; fullName: string; email: string; role: string }; groups: Array<{ id: string; name: string; course: number }> }>>('/admin/staff-groups', { token: getToken() }),
+
+  assignStaffGroups: (userId: string, groupIds: string[]) =>
+    request<void>('/admin/staff-groups', { method: 'POST', body: { userId, groupIds }, token: getToken() }),
+
+  getAuditLogs: (params?: { page?: number; limit?: number; action?: string; userId?: string; dateFrom?: string; dateTo?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      if (params.page) searchParams.set('page', String(params.page));
+      if (params.limit) searchParams.set('limit', String(params.limit));
+      if (params.action) searchParams.set('action', params.action);
+      if (params.userId) searchParams.set('userId', params.userId);
+      if (params.dateFrom) searchParams.set('dateFrom', params.dateFrom);
+      if (params.dateTo) searchParams.set('dateTo', params.dateTo);
+    }
+    const qs = searchParams.toString();
+    return request<{ logs: AuditLogEntry[]; pagination: PaginationInfo }>(
+      `/admin/audit${qs ? `?${qs}` : ''}`,
+      { token: getToken() }
+    );
+  },
 };

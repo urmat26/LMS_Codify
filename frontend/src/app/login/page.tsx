@@ -20,7 +20,12 @@ export default function LoginPage() {
       const response = await api.login(email, password);
       localStorage.setItem('codify_token', response.data.token);
       localStorage.setItem('codify_user', JSON.stringify(response.data.user));
-      router.push('/dashboard');
+      const role = response.data.user.role;
+      if (role === 'student') {
+        router.push('/shop');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка входа');
     } finally {
@@ -86,6 +91,12 @@ export default function LoginPage() {
 
           <p className="text-xs text-gray-400 text-center pt-2">
             Демо: admin@codify.ru / admin123
+          </p>
+          <p className="text-xs text-gray-400 text-center pt-1">
+            Нет аккаунта?{' '}
+            <a href="/register" className="text-indigo-600 hover:text-indigo-800">
+              Зарегистрироваться
+            </a>
           </p>
         </form>
       </div>

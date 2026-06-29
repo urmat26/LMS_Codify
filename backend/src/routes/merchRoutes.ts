@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth';
+import { auditMiddleware } from '../middleware/audit';
 import {
-  getCatalog,
   getAllItems,
   createItem,
   updateItem,
@@ -12,9 +12,9 @@ import {
 const router = Router();
 
 router.use(authenticate);
+router.use(auditMiddleware);
 
 // Read-only for care, full access for admin
-router.get('/merch/catalog', authorize('admin', 'care'), getCatalog);
 router.get('/merch/items', authorize('admin'), getAllItems);
 router.post('/merch/items', authorize('admin'), createItem);
 router.put('/merch/items/:itemId', authorize('admin'), updateItem);

@@ -6,7 +6,10 @@ import { NotFoundError, ValidationError } from '../utils/errors';
 
 const merchItemSchema = z.object({
   name: z.string().min(1, 'Название товара обязательно').max(200),
+  description: z.string().optional().nullable(),
   price: z.number().int().positive('Цена должна быть положительным числом'),
+  category: z.string().optional().nullable(),
+  stock: z.number().int().min(0).optional(),
   imageUrl: z.string().url().optional().nullable(),
   sortOrder: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
@@ -22,13 +25,25 @@ const reorderSchema = z.object({
 });
 
 export async function getCatalog(
-  _req: AuthRequest,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
+    const category = req.query.category as string | undefined;
+    const search = req.query.search as string | undefined;
+
+    const where: any = { isActive: true };
+    if (category) {
+      where.category = category;
+    }
+    if (search) {
+      where.name = { contains: search, mode: 'insensitive' };
+    }
+
     const items = await prisma.merchItem.findMany({
-      where: { isActive: true },
+      where,
+      include: { sizes: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
 
@@ -45,6 +60,7 @@ export async function getAllItems(
 ): Promise<void> {
   try {
     const items = await prisma.merchItem.findMany({
+      include: { sizes: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
 
@@ -69,7 +85,10 @@ export async function createItem(
     const item = await prisma.merchItem.create({
       data: {
         name: data.name,
+        description: data.description ?? null,
         price: data.price,
+        category: data.category ?? null,
+        stock: data.stock ?? 0,
         imageUrl: data.imageUrl || null,
         sortOrder: data.sortOrder ?? (maxSortOrder._max.sortOrder ?? 0) + 1,
       },

@@ -8,8 +8,14 @@ export default function HomePage() {
 
   useEffect(() => {
     const token = localStorage.getItem('codify_token');
-    if (token) {
-      router.replace('/dashboard');
+    const userData = localStorage.getItem('codify_user');
+    if (token && userData) {
+      const user = JSON.parse(userData);
+      if (user.role === 'student') {
+        router.replace('/shop');
+      } else {
+        router.replace('/dashboard');
+      }
     } else {
       router.replace('/login');
     }

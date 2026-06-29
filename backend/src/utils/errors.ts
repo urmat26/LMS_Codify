@@ -27,8 +27,8 @@ export class InsufficientBalanceError extends AppError {
 }
 
 export class ForbiddenError extends AppError {
-  constructor() {
-    super('Доступ запрещён', 403, 'FORBIDDEN');
+  constructor(message?: string) {
+    super(message || 'Доступ запрещён', 403, 'FORBIDDEN');
   }
 }
 

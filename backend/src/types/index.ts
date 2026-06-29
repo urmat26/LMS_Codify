@@ -3,7 +3,8 @@ import { Request } from 'express';
 export interface AuthPayload {
   userId: string;
   email: string;
-  role: 'admin' | 'care';
+  role: 'admin' | 'care' | 'student';
+  studentId?: string;
 }
 
 export interface AuthRequest extends Request {

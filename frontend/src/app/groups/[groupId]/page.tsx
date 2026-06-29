@@ -22,7 +22,12 @@ export default function GroupPage() {
       router.push('/login');
       return;
     }
-    setUser(JSON.parse(userData));
+    const u = JSON.parse(userData);
+    if (u.role === 'student') {
+      router.push('/shop');
+      return;
+    }
+    setUser(u);
   }, [router]);
 
   if (!mounted || !groupId) return null;

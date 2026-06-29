@@ -12,13 +12,16 @@ model User {
   email     String   @unique
   password  String
   fullName  String
-  role      String   @default("care") // admin | care
+  role      String   @default("care") // admin | care | student
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   transactions    CoinTransaction[] @relation("StaffTransactions")
   reversedTx     CoinTransaction[] @relation("ReversedBy")
+  auditLogs      AuditLog[]
+  student        Student?
+  staffGroups    StaffGroup[]
 }
 
 model Group {
@@ -29,7 +32,8 @@ model Group {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  students Student[]
+  students    Student[]
+  staffGroups StaffGroup[]
 }
 
 model Student {
@@ -38,40 +42,78 @@ model Student {
   email       String?
   groupId     String
   coinBalance Int      @default(0)
+  userId      String?  @unique
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   group        Group             @relation(fields: [groupId], references: [id])
   transactions CoinTransaction[]
+  user         User?             @relation(fields: [userId], references: [id])
+  purchases    Purchase[]
 
   @@index([groupId])
   @@index([fullName])
 }
 
 model MerchItem {
-  id        String   @id @default(uuid())
-  name      String
-  price     Int
-  imageUrl  String?
-  sortOrder Int      @default(0)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Int
+  category    String?  // "Одежда" | "Канцелярия" | "Сувениры" | "Аксессуары" | "Другое"
+  stock       Int      @default(0)
+  imageUrl    String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   transactions CoinTransaction[]
+  sizes        MerchSize[]
+  purchases    Purchase[]
 
   @@index([isActive, sortOrder])
+  @@index([category])
+}
+
+model MerchSize {
+  id          String @id @default(uuid())
+  merchItemId String
+  size        String // "S" | "M" | "L" | "XL" | "35-37" | "38-40"
+  quantity    Int    @default(0)
+
+  merchItem MerchItem @relation(fields: [merchItemId], references: [id], onDelete: Cascade)
+
+  @@unique([merchItemId, size])
+}
+
+model Purchase {
+  id          String   @id @default(uuid())
+  studentId   String
+  merchItemId String
+  size        String?
+  quantity    Int      @default(1)
+  totalAmount Int
+  status      String   @default("pending") // pending | collected | cancelled
+  createdAt   DateTime @default(now())
+  collectedAt DateTime?
+
+  student   Student   @relation(fields: [studentId], references: [id])
+  merchItem MerchItem @relation(fields: [merchItemId], references: [id])
+
+  @@index([studentId, status])
+  @@index([createdAt])
 }
 
 model CoinTransaction {
   id           String   @id @default(uuid())
   studentId    String
   staffId      String
-  type         String   // "merch" | "manual"
+  type         String   // "merch" | "manual" | "deposit"
   merchItemId  String?
   quantity     Int      @default(1)
-  amount       Int      // always positive (coins spent)
+  amount       Int      // always positive (coins spent or deposited)
   comment      String?
   isReversed   Boolean  @default(false)
   reversedAt   DateTime?
@@ -85,5 +127,36 @@ model CoinTransaction {
 
   @@index([studentId, createdAt])
   @@index([staffId])
+  @@index([createdAt])
+}
+
+model StaffGroup {
+  id      String @id @default(uuid())
+  userId  String
+  groupId String
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+  @@index([userId])
+  @@index([groupId])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  userId       String
+  action       String   // "withdraw" | "cancel" | "deposit" | "purchase" | "collect" | "create_merch" | "update_merch" | "archive_merch"
+  resourceType String   // "student" | "transaction" | "merch" | "purchase"
+  resourceId   String
+  metadata     String?  // JSON
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([resourceType, resourceId])
   @@index([createdAt])
 }
