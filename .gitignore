@@ -3,3 +3,6 @@ dist/
 .next/
 .env
 *.log
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+frontend/tsconfig.tsbuildinfo
