@@ -17,7 +17,7 @@ router.use(auditMiddleware);
 // Student-facing shop
 router.get('/merch/catalog', authorize('admin', 'care', 'student'), getMerchCatalog);
 router.post('/merch/purchase', authorize('student'), purchase);
-router.get('/purchases', authorize('admin', 'care', 'student'), getMyPurchases);
+router.get('/purchases', authorize('student'), getMyPurchases);
 
 // Staff-only
 router.get('/admin/purchases', authorize('admin', 'care'), getAllPurchases);

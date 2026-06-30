@@ -35,8 +35,20 @@ export async function purchase(
       throw new NotFoundError('Студент');
     }
 
+    // Deduplicate: merge same-item entries
+    const mergedItems = new Map<string, { merchItemId: string; quantity: number; size?: string }>();
+    for (const item of body.items) {
+      const key = item.merchItemId + '|' + (item.size || '');
+      if (mergedItems.has(key)) {
+        mergedItems.get(key)!.quantity += item.quantity;
+      } else {
+        mergedItems.set(key, { ...item });
+      }
+    }
+    const dedupedItems = Array.from(mergedItems.values());
+
     // Fetch all merch items in one query
-    const ids = body.items.map((i) => i.merchItemId);
+    const ids = dedupedItems.map((i) => i.merchItemId);
     const merchItems = await prisma.merchItem.findMany({
       where: { id: { in: ids }, isActive: true },
       include: { sizes: true },
@@ -48,39 +60,43 @@ export async function purchase(
 
     const merchMap = new Map(merchItems.map((m) => [m.id, m]));
     let totalAmount = 0;
-    const lines: { merchItemId: string; quantity: number; size: string | null; price: number }[] = [];
-
-    for (const item of body.items) {
-      const merch = merchMap.get(item.merchItemId);
-      if (!merch) {
-        throw new NotFoundError(`Товар ${item.merchItemId}`);
-      }
-
-      // Check general stock
-      if (merch.stock < item.quantity) {
-        throw new ValidationError(`Недостаточно товара "${merch.name}" на складе (доступно: ${merch.stock})`);
-      }
-
-      // If size specified, check size-level stock
-      if (item.size) {
-        const sizeRecord = merch.sizes.find((s) => s.size === item.size);
-        if (!sizeRecord || sizeRecord.quantity < item.quantity) {
-          throw new ValidationError(`Недостаточно товара "${merch.name}" размера ${item.size} (доступно: ${sizeRecord?.quantity || 0})`);
-        }
-      }
-
-      const cost = merch.price * item.quantity;
-      totalAmount += cost;
-      lines.push({ merchItemId: item.merchItemId, quantity: item.quantity, size: item.size || null, price: merch.price });
-    }
-
-    if (totalAmount <= 0) {
-      throw new ValidationError('Сумма покупки должна быть положительной');
-    }
 
     const result = await prisma.$transaction(async (tx) => {
       const lockedStudent = await tx.student.findUnique({ where: { id: studentId } });
       if (!lockedStudent) throw new NotFoundError('Студент');
+
+      // Re-read stock inside transaction to avoid TOCTOU race
+      const lines: { merchItemId: string; quantity: number; size: string | null; price: number }[] = [];
+
+      for (const item of dedupedItems) {
+        const merch = await tx.merchItem.findUnique({
+          where: { id: item.merchItemId },
+          include: { sizes: true },
+        });
+        if (!merch) {
+          throw new NotFoundError(`Товар ${item.merchItemId}`);
+        }
+
+        if (merch.stock < item.quantity) {
+          throw new ValidationError(`Недостаточно товара "${merch.name}" на складе (доступно: ${merch.stock})`);
+        }
+
+        if (item.size) {
+          const sizeRecord = merch.sizes.find((s) => s.size === item.size);
+          if (!sizeRecord || sizeRecord.quantity < item.quantity) {
+            throw new ValidationError(`Недостаточно товара "${merch.name}" размера ${item.size} (доступно: ${sizeRecord?.quantity || 0})`);
+          }
+        }
+
+        const cost = merch.price * item.quantity;
+        totalAmount += cost;
+        lines.push({ merchItemId: item.merchItemId, quantity: item.quantity, size: item.size || null, price: merch.price });
+      }
+
+      if (totalAmount <= 0) {
+        throw new ValidationError('Сумма покупки должна быть положительной');
+      }
+
       if (lockedStudent.coinBalance < totalAmount) {
         throw new InsufficientBalanceError(lockedStudent.coinBalance, totalAmount);
       }

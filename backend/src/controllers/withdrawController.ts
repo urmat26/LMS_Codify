@@ -180,6 +180,7 @@ export async function cancelTransaction(
   try {
     const { transactionId } = req.params;
     const staffId = req.user!.userId;
+    const userRole = req.user!.role;
 
     const transaction = await prisma.coinTransaction.findUnique({
       where: { id: transactionId },
@@ -190,8 +191,9 @@ export async function cancelTransaction(
       throw new NotFoundError('Транзакция');
     }
 
-    if (transaction.isReversed) {
-      throw new ValidationError('Транзакция уже была отменена');
+    // Student can only cancel their own transactions
+    if (userRole === 'student' && transaction.studentId !== req.user!.studentId) {
+      throw new ValidationError('Вы не можете отменить эту транзакцию');
     }
 
     const hoursSinceCreation = (Date.now() - transaction.createdAt.getTime()) / (1000 * 60 * 60);
@@ -201,6 +203,15 @@ export async function cancelTransaction(
 
     const result = await prisma.$transaction(
       async (tx) => {
+        // Check isReversed INSIDE the transaction to prevent double-refund race
+        const txRecord = await tx.coinTransaction.findUnique({
+          where: { id: transactionId },
+        });
+
+        if (!txRecord || txRecord.isReversed) {
+          throw new ValidationError('Транзакция уже была отменена');
+        }
+
         const lockedStudent = await tx.student.findUnique({
           where: { id: transaction.studentId },
         });

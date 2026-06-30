@@ -62,11 +62,13 @@ export async function assignGroups(
       throw new NotFoundError('Группа');
     }
 
+    const uniqueGroupIds = [...new Set(groupIds)];
+
     await prisma.$transaction(async (tx) => {
       await tx.staffGroup.deleteMany({ where: { userId } });
-      if (groupIds.length > 0) {
+      if (uniqueGroupIds.length > 0) {
         await tx.staffGroup.createMany({
-          data: groupIds.map((groupId) => ({ userId, groupId })),
+          data: uniqueGroupIds.map((groupId) => ({ userId, groupId })),
         });
       }
     });

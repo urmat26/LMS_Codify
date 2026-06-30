@@ -1,6 +1,14 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+const REQUIRED_ENV_VARS = ['DATABASE_URL', 'JWT_SECRET'] as const;
+for (const v of REQUIRED_ENV_VARS) {
+  if (!process.env[v]) {
+    console.error(`FATAL: Missing required environment variable: ${v}`);
+    process.exit(1);
+  }
+}
+
 import express from 'express';
 import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
@@ -13,7 +21,10 @@ function getPort(): string {
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'];
+app.use(cors({
+  origin: allowedOrigins,
+}));
 app.use(express.json());
 
 // Health check

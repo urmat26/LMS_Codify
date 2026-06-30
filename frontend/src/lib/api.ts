@@ -1,6 +1,8 @@
 import { ApiResponse, Student, MerchItem, MerchSize, Transaction, Group, WithdrawPayload, PaginationInfo, TodayStats, CartItem, Purchase, AuditLogEntry } from '@/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
+const REQUEST_TIMEOUT = 30000;
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -22,19 +24,32 @@ async function request<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-  const json: ApiResponse<T> = await response.json();
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    throw new Error(json.error?.message || 'Произошла ошибка');
+    let json: ApiResponse<T>;
+    try {
+      json = await response.json();
+    } catch {
+      throw new Error(`Ошибка сервера (${response.status})`);
+    }
+
+    if (!response.ok) {
+      throw new Error(json.error?.message || 'Произошла ошибка');
+    }
+
+    return json;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return json;
 }
 
 function getToken(): string | undefined {
@@ -89,8 +104,10 @@ export const api = {
   // CSV Export
   exportGroupCSV: async (groupId: string): Promise<Blob> => {
     const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const response = await fetch(`${API_BASE}/groups/${groupId}/export-csv`, {
-      headers: { 'Authorization': `Bearer ${token}` },
+      headers,
     });
     if (!response.ok) {
       const json = await response.json().catch(() => null);

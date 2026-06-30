@@ -30,7 +30,7 @@ export default function GroupPage() {
     setUser(u);
   }, [router]);
 
-  if (!mounted || !groupId) return null;
+  if (!mounted || !user || !groupId) return null;
 
   const isAdmin = user?.role === 'admin';
 
