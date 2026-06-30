@@ -205,7 +205,7 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
             </div>
             {!condensed && (
               <>
-                {isPinned && <span className="text-base font-semibold text-gray-900">Кодифай</span>}
+                <span className="text-base font-semibold text-gray-900">Кодифай</span>
                 <div className="flex items-center gap-1 ml-auto">
                   {isPinned && (
                     <button
