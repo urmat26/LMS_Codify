@@ -15,7 +15,7 @@ router.use(authenticate);
 router.use(auditMiddleware);
 
 // Read-only for care, full access for admin
-router.get('/merch/items', authorize('admin'), getAllItems);
+router.get('/merch/items', authorize('admin', 'care'), getAllItems);
 router.post('/merch/items', authorize('admin'), createItem);
 router.put('/merch/items/:itemId', authorize('admin'), updateItem);
 router.delete('/merch/items/:itemId', authorize('admin'), archiveItem);
