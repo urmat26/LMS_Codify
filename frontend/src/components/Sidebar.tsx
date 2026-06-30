@@ -149,8 +149,8 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
   const handleHamburgerClick = () => {
     if (isPinned || isTouchDevice) {
       setIsOpen(!isOpen);
-    } else if (!isOpen) {
-      setIsOpen(true);
+    } else {
+      setIsPinned(true);
     }
   };
 
@@ -205,19 +205,17 @@ export function Sidebar({ isAdmin, isStudent }: SidebarProps) {
             </div>
             {!condensed && (
               <>
-                <span className="text-base font-semibold text-gray-900">Кодифай</span>
+                {isPinned && <span className="text-base font-semibold text-gray-900">Кодифай</span>}
                 <div className="flex items-center gap-1 ml-auto">
-                  <button
-                    onClick={() => setIsPinned(!isPinned)}
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                      isPinned
-                        ? 'text-codify-purple-600 hover:bg-codify-purple-50'
-                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                    }`}
-                    title={isPinned ? 'Открепить меню' : 'Закрепить меню'}
-                  >
-                    <PinIcon />
-                  </button>
+                  {isPinned && (
+                    <button
+                      onClick={() => setIsPinned(false)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-codify-purple-600 hover:bg-codify-purple-50 transition-all"
+                      title="Открепить меню"
+                    >
+                      <PinIcon />
+                    </button>
+                  )}
                   {isPinned && (
                     <button
                       onClick={() => setIsOpen(false)}
