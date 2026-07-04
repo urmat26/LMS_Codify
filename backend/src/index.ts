@@ -48,6 +48,7 @@ async function start() {
   const purchaseRoutes = (await import('./routes/purchaseRoutes')).default;
   const auditRoutes = (await import('./routes/auditRoutes')).default;
   const staffRoutes = (await import('./routes/staffRoutes')).default;
+  const studentSelfRoutes = (await import('./routes/studentSelfRoutes')).default;
 
   app.use('/api', authRoutes);
   app.use('/api/v1', authRoutes);
@@ -65,6 +66,8 @@ async function start() {
   app.use('/api/v1', auditRoutes);
   app.use('/api', staffRoutes);
   app.use('/api/v1', staffRoutes);
+  app.use('/api', studentSelfRoutes);
+  app.use('/api/v1', studentSelfRoutes);
 
   // Error handler (must be last)
   app.use(errorHandler);

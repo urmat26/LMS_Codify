@@ -12,7 +12,7 @@ export default function HomePage() {
     if (token && userData) {
       const user = JSON.parse(userData);
       if (user.role === 'student') {
-        router.replace('/shop');
+        router.replace('/home');
       } else {
         router.replace('/dashboard');
       }

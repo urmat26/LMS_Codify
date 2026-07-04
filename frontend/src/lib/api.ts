@@ -194,6 +194,18 @@ export const api = {
       token: getToken(),
     }),
 
+  getMyProfile: () =>
+    request<{ id: string; email: string; fullName: string; role: string; student?: { id: string; coinBalance: number; groupId: string } | null }>(
+      '/students/me',
+      { token: getToken() }
+    ),
+
+  getMyTransactions: () =>
+    request<{ student: { id: string; fullName: string; coinBalance: number }; transactions: Transaction[] }>(
+      '/students/me/transactions',
+      { token: getToken() }
+    ),
+
   getMyPurchases: () =>
     request<Purchase[]>('/purchases', { token: getToken() }),
 
