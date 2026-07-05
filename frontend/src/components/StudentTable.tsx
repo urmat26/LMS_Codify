@@ -3,36 +3,58 @@
 import { useState, useRef, useEffect } from 'react';
 import { Student, PaginationInfo } from '@/types';
 import { TransactionHistory } from './TransactionHistory';
+import { UI_CONFIG } from '@/config/uiConfig';
 
 interface StudentTableProps {
   students: Student[];
   groupName: string;
   onWithdraw: (student: Student) => void;
+  onQuickIssue: (student: Student) => void;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   pagination?: PaginationInfo;
   onPageChange?: (page: number) => void;
+  sortBy?: string;
+  sortOrder?: string;
+  onSortChange?: (sortBy: string, sortOrder: string) => void;
+  hideServiced?: boolean;
+  onHideServicedChange?: (hide: boolean) => void;
+}
+
+const { green, amber } = UI_CONFIG.balanceThresholds;
+
+function getBalanceColor(balance: number, isFlashing: boolean): string {
+  if (isFlashing) return 'text-codify-green-500 scale-110';
+  if (balance >= green) return 'text-codify-green-600';
+  if (balance >= amber) return 'text-amber-600';
+  return 'text-red-500';
 }
 
 export function StudentTable({
   students,
-  groupName,
   onWithdraw,
+  onQuickIssue,
   searchQuery = '',
   onSearchChange,
   pagination,
   onPageChange,
+  sortBy = 'fullName',
+  sortOrder = 'asc',
+  onSortChange,
+  hideServiced = false,
+  onHideServicedChange,
 }: StudentTableProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [historyStudent, setHistoryStudent] = useState<Student | null>(null);
   const [flashingIds, setFlashingIds] = useState<Set<string>>(new Set());
   const prevBalancesRef = useRef<Record<string, number>>({});
 
+  const hasQuickIssue = !!UI_CONFIG.defaultQuickIssueItemId;
+
   useEffect(() => {
     setLocalSearch(searchQuery);
   }, [searchQuery]);
 
-  // Detect balance changes and trigger green flash
   useEffect(() => {
     const newFlashingIds = new Set<string>();
     students.forEach((s) => {
@@ -57,6 +79,24 @@ export function StudentTable({
   const handleSearchClear = () => {
     setLocalSearch('');
     onSearchChange?.('');
+  };
+
+  const handleSortToggle = (field: string) => {
+    if (sortBy === field) {
+      const next = sortOrder === 'asc' ? 'desc' : 'asc';
+      onSortChange?.(field, next);
+    } else {
+      onSortChange?.(field, 'asc');
+    }
+  };
+
+  const sortIcon = (field: string) => {
+    if (sortBy !== field) return null;
+    return (
+      <svg className={`w-3.5 h-3.5 ml-1 inline-block ${sortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+      </svg>
+    );
   };
 
   const stats = {
@@ -92,6 +132,19 @@ export function StudentTable({
                 </span>
               </span>
             </div>
+            {/* Filter toggle */}
+            <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer select-none ml-2">
+              <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${hideServiced ? 'bg-codify-purple-600' : 'bg-gray-200'}`}>
+                <input
+                  type="checkbox"
+                  checked={hideServiced}
+                  onChange={(e) => onHideServicedChange?.(e.target.checked)}
+                  className="sr-only"
+                />
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${hideServiced ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
+              </span>
+              <span className="text-xs font-medium">Не обслужены</span>
+            </label>
           </div>
           <div className="flex items-center gap-2.5 text-sm">
             <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -144,11 +197,17 @@ export function StudentTable({
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  ФИО Студента
+                <th
+                  className="text-left px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-600 transition-colors"
+                  onClick={() => handleSortToggle('fullName')}
+                >
+                  ФИО Студента{sortIcon('fullName')}
                 </th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  Баланс CodeCoin
+                <th
+                  className="text-right px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-600 transition-colors"
+                  onClick={() => handleSortToggle('coinBalance')}
+                >
+                  Баланс CodeCoin{sortIcon('coinBalance')}
                 </th>
                 <th className="text-center px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   Статус
@@ -200,15 +259,7 @@ export function StudentTable({
                       </td>
                       <td className="px-5 py-4 text-right">
                         <span
-                          className={`inline-block transition-all duration-500 text-sm font-bold tabular-nums ${
-                            isFlashing
-                              ? 'text-codify-green-500 scale-110'
-                              : student.coinBalance >= 1000
-                              ? 'text-codify-green-600'
-                              : student.coinBalance >= 500
-                              ? 'text-amber-600'
-                              : 'text-red-500'
-                          }`}
+                          className={`inline-block transition-all duration-500 text-sm font-bold tabular-nums ${getBalanceColor(student.coinBalance, isFlashing)}`}
                         >
                           {student.coinBalance.toLocaleString()}
                         </span>
@@ -227,6 +278,17 @@ export function StudentTable({
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {hasQuickIssue && !student.receivedMerchToday && (
+                            <button
+                              onClick={() => onQuickIssue(student)}
+                              className="px-3 py-2 text-sm font-medium rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all active:scale-[0.97]"
+                              title="Быстрая выдача"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                            </button>
+                          )}
                           <button
                             onClick={() => setHistoryStudent(student)}
                             className="p-2 rounded-lg text-gray-300 hover:text-codify-purple-600 hover:bg-codify-purple-50 transition-all"
@@ -283,7 +345,6 @@ export function StudentTable({
         </div>
       )}
 
-      {/* Results count (when no pagination) */}
       {(!pagination || pagination.totalPages <= 1) && (
         <div className="flex items-center justify-between text-xs text-gray-400">
           <span>
@@ -293,7 +354,6 @@ export function StudentTable({
         </div>
       )}
 
-      {/* Transaction History Modal */}
       {historyStudent && (
         <TransactionHistory
           studentId={historyStudent.id}

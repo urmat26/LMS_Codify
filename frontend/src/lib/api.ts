@@ -83,11 +83,14 @@ export const api = {
   getGroups: () =>
     request<Group[]>('/groups', { token: getToken() }),
 
-  getGroupStudents: (groupId: string, search?: string, page?: number, limit?: number) => {
+  getGroupStudents: (groupId: string, search?: string, page?: number, limit?: number, sortBy?: string, sortOrder?: string, hideServiced?: boolean) => {
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     if (page) params.set('page', String(page));
     if (limit) params.set('limit', String(limit));
+    if (sortBy) params.set('sortBy', sortBy);
+    if (sortOrder) params.set('sortOrder', sortOrder);
+    if (hideServiced) params.set('hideServiced', 'true');
     const qs = params.toString();
     return request<{ group: Group; students: Student[]; pagination: PaginationInfo }>(
       `/groups/${groupId}/students${qs ? `?${qs}` : ''}`,
@@ -159,7 +162,7 @@ export const api = {
       token: getToken(),
     }),
 
-  cancelTransaction: (transactionId: string) =>
+  cancelTransaction: (transactionId: string, reason: string) =>
     request<{
       transaction: Transaction;
       previousBalance: number;
@@ -167,8 +170,17 @@ export const api = {
       message: string;
     }>(`/transactions/${transactionId}/cancel`, {
       method: 'POST',
+      body: { reason },
       token: getToken(),
     }),
+
+  searchStudents: (q: string) => {
+    const params = new URLSearchParams({ q });
+    return request<Array<{ id: string; fullName: string; coinBalance: number; groupId: string; groupName: string; course: number; receivedMerchToday: boolean }>>(
+      `/students/search?${params}`,
+      { token: getToken() }
+    );
+  },
 
   // Deposit (admin only)
   deposit: (studentId: string, data: { amount: number; reason: string }) =>

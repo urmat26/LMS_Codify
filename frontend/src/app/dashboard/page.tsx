@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Group, TodayStats } from '@/types';
+import { Group, TodayStats, SearchStudentResult, Student, MerchItem } from '@/types';
 import { api } from '@/lib/api';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { Sidebar } from '@/components/Sidebar';
+import { WithdrawModal } from '@/components/WithdrawModal';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<{ fullName: string; role: string } | null>(null);
@@ -13,6 +14,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [todayStats, setTodayStats] = useState<TodayStats | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchStudentResult[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [catalogItems, setCatalogItems] = useState<MerchItem[]>([]);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const router = useRouter();
 
   useEffect(() => {
@@ -44,6 +54,65 @@ export default function DashboardPage() {
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
+  }, []);
+
+  // Global search with debounce
+  const handleSearchInput = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (!value.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await api.searchStudents(value.trim());
+        setSearchResults(res.data);
+        setShowSearchResults(true);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  }, []);
+
+  // Handle selecting a student from global search
+  const handleSelectSearchResult = useCallback(async (student: SearchStudentResult) => {
+    setShowSearchResults(false);
+    setSearchQuery('');
+    try {
+      const catalogRes = await api.getCatalog();
+      setCatalogItems(catalogRes.data);
+      setSelectedStudent({
+        id: student.id,
+        fullName: student.fullName,
+        coinBalance: student.coinBalance,
+        email: null,
+        receivedMerchToday: student.receivedMerchToday,
+        todayTransactions: [],
+      });
+    } catch {
+      setToast({ type: 'error', message: 'Не удалось загрузить каталог' });
+    }
+  }, []);
+
+  const handleSearchWithdrawSuccess = useCallback((_studentId: string, _newBalance: number, _transactionId: string) => {
+    setSelectedStudent(null);
+    setToast({ type: 'success', message: 'Коины списаны' });
+  }, []);
+
+  // Close search results on click outside
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSearchResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
   const handleLogout = () => {
@@ -106,9 +175,55 @@ export default function DashboardPage() {
         {/* Page header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Выдача мерча</h1>
-          <p className="mt-1.5 text-sm text-gray-500">
+          <p className="mt-1.5 text-sm text-gray-500 mb-4">
             Выберите группу для списания CodeCoin или управляйте каталогом наград
           </p>
+
+          {/* Global search */}
+          <div ref={searchRef} className="relative max-w-md">
+            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchInput(e.target.value)}
+              placeholder="Быстрый поиск студента по всем группам..."
+              className="input-field pl-10 pr-10"
+            />
+            {isSearching && (
+              <svg className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
+            {showSearchResults && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 max-h-80 overflow-y-auto z-40">
+                {searchResults.length === 0 ? (
+                  <div className="p-4 text-sm text-gray-400 text-center">Ничего не найдено</div>
+                ) : (
+                  searchResults.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => handleSelectSearchResult(s)}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-codify-purple-100 flex items-center justify-center text-xs font-bold text-codify-purple-700 flex-shrink-0">
+                        {s.fullName.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{s.fullName}</p>
+                        <p className="text-xs text-gray-400">{s.groupName} ({s.course} курс)</p>
+                      </div>
+                      <span className={`text-sm font-bold tabular-nums ${s.coinBalance >= 1000 ? 'text-codify-green-600' : s.coinBalance >= 500 ? 'text-amber-600' : 'text-red-500'}`}>
+                        {s.coinBalance.toLocaleString()}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Today stats */}
@@ -265,6 +380,30 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* Withdraw modal from global search */}
+      {selectedStudent && (
+        <WithdrawModal
+          student={selectedStudent}
+          merchItems={catalogItems}
+          isOpen={!!selectedStudent}
+          onClose={() => setSelectedStudent(null)}
+          onSuccess={handleSearchWithdrawSuccess}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in">
+          <div className={`px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${
+            toast.type === 'success' ? 'bg-codify-green-600' :
+            toast.type === 'error' ? 'bg-red-600' :
+            'bg-codify-blue-600'
+          }`}>
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

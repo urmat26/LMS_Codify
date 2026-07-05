@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Student, MerchItem } from '@/types';
+import { Student, MerchItem, WithdrawPayload } from '@/types';
 import { api } from '@/lib/api';
 import { StudentTable } from './StudentTable';
 import { WithdrawModal } from './WithdrawModal';
 import { Toast, ToastData } from './Toast';
+import { UI_CONFIG } from '@/config/uiConfig';
 
 interface GroupWithdrawPageProps {
   groupId: string;
@@ -23,15 +24,20 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 });
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('fullName');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [hideServiced, setHideServiced] = useState(true);
   const [undoInfo, setUndoInfo] = useState<{ transactionId: string; studentId: string; timeoutId: number } | null>(null);
+  const [cancelReasonModal, setCancelReasonModal] = useState<{ transactionId: string } | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
-  const fetchData = useCallback(async (page?: number, search?: string, limit?: number) => {
+  const fetchData = useCallback(async (page?: number, search?: string, limit?: number, sBy?: string, sOrder?: string, hServiced?: boolean) => {
     try {
       setIsRefreshing(true);
       const currentPage = page ?? 1;
       const currentLimit = limit ?? 50;
       const [groupResponse, catalogResponse] = await Promise.all([
-        api.getGroupStudents(groupId, search, currentPage, currentLimit),
+        api.getGroupStudents(groupId, search, currentPage, currentLimit, sBy ?? sortBy, sOrder ?? sortOrder, hServiced ?? hideServiced),
         api.getCatalog(),
       ]);
 
@@ -49,10 +55,10 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [groupId]);
+  }, [groupId, sortBy, sortOrder, hideServiced]);
 
   useEffect(() => {
-    fetchData(1);
+    fetchData(1, searchQuery, 50, sortBy, sortOrder, hideServiced);
   }, [fetchData]);
 
   useEffect(() => {
@@ -85,16 +91,32 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
         duration: 10000,
         action: {
           label: 'Отменить',
-          onClick: () => handleUndo(transactionId),
+          onClick: () => setCancelReasonModal({ transactionId }),
         },
       });
     },
     [undoInfo]
   );
 
+  const handleUndoWithReason = useCallback(async () => {
+    if (!cancelReasonModal || !cancelReason.trim()) return;
+    try {
+      await api.cancelTransaction(cancelReasonModal.transactionId, cancelReason.trim());
+      setUndoInfo(null);
+      setCancelReasonModal(null);
+      setCancelReason('');
+      setToast({ type: 'success', message: 'Списание отменено, коины возвращены' });
+      fetchData(1);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка при отмене';
+      setToast({ type: 'error', message });
+    }
+  }, [cancelReasonModal, cancelReason, fetchData]);
+
+  // Fallback undo without reason (for backward compatibility / student self-cancel)
   const handleUndo = useCallback(async (transactionId: string) => {
     try {
-      await api.cancelTransaction(transactionId);
+      await api.cancelTransaction(transactionId, 'Отменено вручную');
       setUndoInfo(null);
       setToast({ type: 'success', message: 'Списание отменено, коины возвращены' });
       fetchData(1);
@@ -113,12 +135,45 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
 
   const handleSearch = useCallback((search: string) => {
     setSearchQuery(search);
-    fetchData(1, search);
-  }, [fetchData]);
+    fetchData(1, search, 50, sortBy, sortOrder, hideServiced);
+  }, [fetchData, sortBy, sortOrder, hideServiced]);
+
+  const handleSortChange = useCallback((newSortBy: string, newSortOrder: string) => {
+    setSortBy(newSortBy);
+    setSortOrder(newSortOrder);
+    fetchData(1, searchQuery, 50, newSortBy, newSortOrder, hideServiced);
+  }, [fetchData, searchQuery, hideServiced]);
+
+  const handleHideServicedChange = useCallback((hide: boolean) => {
+    setHideServiced(hide);
+    fetchData(1, searchQuery, 50, sortBy, sortOrder, hide);
+  }, [fetchData, searchQuery, sortBy, sortOrder]);
 
   const handlePageChange = useCallback((page: number) => {
-    fetchData(page, searchQuery);
-  }, [fetchData, searchQuery]);
+    fetchData(page, searchQuery, 50, sortBy, sortOrder, hideServiced);
+  }, [fetchData, searchQuery, sortBy, sortOrder, hideServiced]);
+
+  const handleQuickIssue = useCallback(async (student: Student) => {
+    const itemId = UI_CONFIG.defaultQuickIssueItemId;
+    if (!itemId) return;
+    const item = merchItems.find((m) => m.id === itemId);
+    if (!item) {
+      setToast({ type: 'error', message: 'Товар для быстрой выдачи не найден в каталоге' });
+      return;
+    }
+    if (student.coinBalance < item.price) {
+      setToast({ type: 'error', message: `Недостаточно коинов у студента (${student.coinBalance})` });
+      return;
+    }
+    try {
+      const payload: WithdrawPayload = { type: 'merch', items: [{ merchItemId: itemId, quantity: 1 }] };
+      const result = await api.withdraw(student.id, payload);
+      handleWithdrawSuccess(student.id, result.data.newBalance, result.data.firstTransactionId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка быстрой выдачи';
+      setToast({ type: 'error', message });
+    }
+  }, [merchItems, handleWithdrawSuccess]);
 
   const handleExportCSV = useCallback(async () => {
     try {
@@ -224,10 +279,16 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
           students={students}
           groupName={groupName}
           onWithdraw={setSelectedStudent}
+          onQuickIssue={handleQuickIssue}
           searchQuery={searchQuery}
           onSearchChange={handleSearch}
           pagination={pagination}
           onPageChange={handlePageChange}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSortChange={handleSortChange}
+          hideServiced={hideServiced}
+          onHideServicedChange={handleHideServicedChange}
         />
       </div>
 
@@ -240,6 +301,47 @@ export function GroupWithdrawPage({ groupId, onGroupNameChange }: GroupWithdrawP
           onClose={() => setSelectedStudent(null)}
           onSuccess={handleWithdrawSuccess}
         />
+      )}
+
+      {/* Cancel reason modal */}
+      {cancelReasonModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+        >
+          <div className="absolute inset-0" onClick={() => { setCancelReasonModal(null); setCancelReason(''); }} />
+          <div className="relative bg-white rounded-2xl shadow-modal w-full max-w-sm mx-auto z-10 p-6">
+            <h3 className="text-base font-semibold text-gray-900 mb-1">Отмена списания</h3>
+            <p className="text-sm text-gray-500 mb-4">Укажите причину отмены (обязательно)</p>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="input-field min-h-[80px] resize-none"
+              placeholder="Причина отмены..."
+              rows={3}
+              autoFocus
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => { setCancelReasonModal(null); setCancelReason(''); }}
+                className="btn-secondary"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleUndoWithReason}
+                disabled={!cancelReason.trim()}
+                className={`px-4 py-2 text-sm font-medium rounded-xl transition-all ${
+                  cancelReason.trim()
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                }`}
+              >
+                Подтвердить отмену
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

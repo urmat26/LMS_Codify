@@ -82,6 +82,7 @@ export interface Transaction {
   isReversed: boolean;
   reversedAt: string | null;
   reversedBy: string | null;
+  cancelReason: string | null;
   createdAt: string;
   staff?: { id: string; fullName: string };
   merchItem?: { id: string; name: string; price: number };
@@ -111,6 +112,16 @@ export interface PaginationInfo {
   limit: number;
   total: number;
   totalPages: number;
+}
+
+export interface SearchStudentResult {
+  id: string;
+  fullName: string;
+  coinBalance: number;
+  groupId: string;
+  groupName: string;
+  course: number;
+  receivedMerchToday: boolean;
 }
 
 export interface TodayStats {

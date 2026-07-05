@@ -118,6 +118,7 @@ model CoinTransaction {
   isReversed   Boolean  @default(false)
   reversedAt   DateTime?
   reversedBy   String?
+  cancelReason String?
   createdAt    DateTime @default(now())
 
   student   Student  @relation(fields: [studentId], references: [id])

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Student, MerchItem, WithdrawPayload, CartItem } from '@/types';
 import { useWithdraw } from '@/hooks/useWithdraw';
+import { UI_CONFIG } from '@/config/uiConfig';
 
 interface WithdrawModalProps {
   student: Student;
@@ -33,8 +34,11 @@ export function WithdrawModal({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setCart([]);
-      setMode('merch');
+      const defaultItems = UI_CONFIG.defaultCartItems
+        .filter((ci) => merchItems.some((m) => m.id === ci.merchItemId))
+        .map((ci) => ({ ...ci }));
+      setCart(defaultItems);
+      setMode(defaultItems.length > 0 ? 'merch' : 'merch');
       setManualAmount(0);
       setManualComment('');
       setMerchComment('');
@@ -42,7 +46,7 @@ export function WithdrawModal({
       clearError();
       clearResult();
     }
-  }, [isOpen, clearError, clearResult]);
+  }, [isOpen, clearError, clearResult, merchItems]);
 
   // Lock body scroll when modal is open
   useEffect(() => {

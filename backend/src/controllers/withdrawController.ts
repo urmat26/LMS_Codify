@@ -172,6 +172,10 @@ export async function withdraw(
   }
 }
 
+const cancelSchema = z.object({
+  reason: z.string().min(1, 'Укажите причину отмены'),
+});
+
 export async function cancelTransaction(
   req: AuthRequest,
   res: Response,
@@ -181,6 +185,7 @@ export async function cancelTransaction(
     const { transactionId } = req.params;
     const staffId = req.user!.userId;
     const userRole = req.user!.role;
+    const { reason } = cancelSchema.parse(req.body);
 
     const transaction = await prisma.coinTransaction.findUnique({
       where: { id: transactionId },
@@ -235,6 +240,7 @@ export async function cancelTransaction(
             isReversed: true,
             reversedAt: new Date(),
             reversedBy: staffId,
+            cancelReason: reason,
           },
         });
 

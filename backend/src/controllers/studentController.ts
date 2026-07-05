@@ -13,7 +13,7 @@ export async function getGroupStudents(
   try {
     const userId = req.user!.userId;
     const { groupId } = req.params;
-    const { search, includeInactive, page: pageStr, limit: limitStr } = req.query;
+    const { search, includeInactive, page: pageStr, limit: limitStr, sortBy, sortOrder, hideServiced } = req.query;
 
     // Check staff group access
     const allowedGroupIds = await getFilteredGroupIds(userId);
@@ -33,6 +33,12 @@ export async function getGroupStudents(
     const limit = Math.min(200, Math.max(1, parseInt(limitStr as string) || 50));
     const skip = (page - 1) * limit;
 
+    const validSortBy = ['fullName', 'coinBalance'];
+    const orderField = validSortBy.includes(sortBy as string) ? (sortBy as string) : 'fullName';
+    const orderDir = sortOrder === 'desc' ? 'desc' : 'asc';
+
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+
     const whereClause: Prisma.StudentWhereInput = {
       groupId,
       ...(includeInactive !== 'true' ? { isActive: true } : {}),
@@ -43,20 +49,28 @@ export async function getGroupStudents(
             },
           }
         : {}),
+      ...(hideServiced === 'true'
+        ? {
+            transactions: {
+              none: {
+                createdAt: { gte: todayStart },
+                isReversed: false,
+              },
+            },
+          }
+        : {}),
     };
 
     const [students, total] = await Promise.all([
       prisma.student.findMany({
         where: whereClause,
-        orderBy: { fullName: 'asc' },
+        orderBy: { [orderField]: orderDir },
         skip,
         take: limit,
         include: {
           transactions: {
             where: {
-              createdAt: {
-                gte: new Date(new Date().setHours(0, 0, 0, 0)),
-              },
+              createdAt: { gte: todayStart },
               isReversed: false,
             },
             select: { id: true, amount: true, type: true, createdAt: true },
@@ -135,6 +149,61 @@ export async function getStudentTransactions(
         transactions,
       },
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function searchStudents(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user!.userId;
+    const { q } = req.query;
+
+    if (!q || (q as string).trim().length === 0) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+
+    const allowedGroupIds = await getFilteredGroupIds(userId);
+
+    const whereClause: Prisma.StudentWhereInput = {
+      fullName: { contains: q as string },
+      isActive: true,
+      ...(allowedGroupIds ? { groupId: { in: allowedGroupIds } } : {}),
+    };
+
+    const students = await prisma.student.findMany({
+      where: whereClause,
+      take: 20,
+      orderBy: { fullName: 'asc' },
+      include: {
+        group: { select: { id: true, name: true, course: true } },
+        transactions: {
+          where: {
+            createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+            isReversed: false,
+          },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+
+    const result = students.map((s) => ({
+      id: s.id,
+      fullName: s.fullName,
+      coinBalance: s.coinBalance,
+      groupId: s.groupId,
+      groupName: s.group.name,
+      course: s.group.course,
+      receivedMerchToday: s.transactions.length > 0,
+    }));
+
+    res.json({ success: true, data: result });
   } catch (err) {
     next(err);
   }

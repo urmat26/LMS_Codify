@@ -53,7 +53,7 @@ export function useWithdraw(): UseWithdrawReturn {
     setError(null);
 
     try {
-      const response = await api.cancelTransaction(transactionId);
+      const response = await api.cancelTransaction(transactionId, 'Отменено вручную');
       const result = {
         message: response.data.message,
         newBalance: response.data.newBalance,
