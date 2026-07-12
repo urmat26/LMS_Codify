@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: codify
+      POSTGRES_PASSWORD: codify
+      POSTGRES_DB: codify
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://codify:codify@db:5432/codify
+      JWT_SECRET: your-jwt-secret-change-in-production
+      JWT_EXPIRES_IN: 24h
+      PORT: 3001
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: /api
+      API_PROXY_TARGET: http://backend:3001
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

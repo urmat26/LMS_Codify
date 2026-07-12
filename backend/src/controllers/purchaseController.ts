@@ -277,7 +277,7 @@ export async function getMerchCatalog(
       where.category = category;
     }
     if (search) {
-      where.name = { contains: search as string };
+      where.name = { contains: search as string, mode: 'insensitive' };
     }
 
     const items = await prisma.merchItem.findMany({

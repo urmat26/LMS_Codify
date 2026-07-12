@@ -46,6 +46,7 @@ export async function getGroupStudents(
         ? {
             fullName: {
               contains: search as string,
+              mode: 'insensitive',
             },
           }
         : {}),
@@ -171,7 +172,7 @@ export async function searchStudents(
     const allowedGroupIds = await getFilteredGroupIds(userId);
 
     const whereClause: Prisma.StudentWhereInput = {
-      fullName: { contains: q as string },
+      fullName: { contains: q as string, mode: 'insensitive' },
       isActive: true,
       ...(allowedGroupIds ? { groupId: { in: allowedGroupIds } } : {}),
     };
